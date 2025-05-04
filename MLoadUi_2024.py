@@ -1,0 +1,874 @@
+import os
+import sys
+import subprocess
+from PySide2.QtWidgets import QApplication, QMessageBox, QWidget,  QPushButton, QShortcut, QVBoxLayout, QLabel, QFileDialog, QHBoxLayout, QSpacerItem, QSizePolicy, QFrame, QLineEdit, QGridLayout, QComboBox, QStackedLayout, QLayout
+from PySide2.QtCore import Qt, QTimer, QSize, QEvent, QCoreApplication
+from PySide2.QtGui import QImage, QPixmap, QFont, QIntValidator, QTransform, QKeyEvent, QKeySequence
+import imp
+import customWidgets as cw
+imp.reload(cw)
+import styleSheet
+import ntpath
+import json
+from pathlib import Path
+import shutil
+import maya.cmds as cmds
+import threading
+import maya.OpenMaya as om
+import maya.OpenMayaAnim as oma
+from maya import OpenMayaUI as omui
+import importlib.util
+import inspect 
+from shiboken2 import wrapInstance
+from functools import partial
+
+def _getMainMayaWindow():
+    mayaMainWindowPtr = omui.MQtUtil.mainWindow()
+    mayaMainWindow = wrapInstance(int(mayaMainWindowPtr), QWidget)
+    return mayaMainWindow
+
+def shortcutActivated(shortcut):
+    if "scriptEditor" in cmds.getPanel(wf=1):
+        cmds.scriptEditorInfo(clearHistory=1)
+    else:
+        shortcut.setEnabled(0)
+        e = QKeyEvent(QEvent.KeyPress, Qt.Key_H, Qt.CTRL)
+        QCoreApplication.postEvent(_getMainMayaWindow(), e)
+        cmds.evalDeferred(partial(shortcut.setEnabled, 1))
+
+def initShortcut():
+    shortcut = QShortcut(QKeySequence(Qt.CTRL + Qt.Key_H), _getMainMayaWindow())
+    shortcut.setContext(Qt.ApplicationShortcut)
+    shortcut.activated.connect(partial(shortcutActivated, shortcut))
+
+def import_scoped_cv2():
+    
+    script_directory = (os.path.dirname(os.path.abspath( 
+    inspect.getfile(inspect.currentframe()))) ).replace(os.sep, '/')
+  
+    cv2_path = f"{script_directory}/cv2Bundle"
+
+    sys.path.insert(0, cv2_path)
+
+    try:
+        import cv2
+        return cv2
+    except Exception as e:
+        print(f"❌ Failed to import cv2 from {cv2_path}: {e}")
+        return None
+    finally:
+        if cv2_path in sys.path:
+            sys.path.remove(cv2_path)
+
+
+sceneFrameRate = 1.0 / om.MTime(1.0, om.MTime.uiUnit()).asUnits(om.MTime.kSeconds) 
+animationStartTime = oma.MAnimControl.animationStartTime().value()
+playbackStartTime = oma.MAnimControl.minTime().value()
+
+class ReferenceEditor(QWidget):
+    def __init__(self, file, parent=None):
+        super().__init__(parent)
+
+        self.cv2 = import_scoped_cv2()
+        if not self.cv2:
+            QMessageBox.warning(self, "Import Error", "OpenCV/NumPy not available. Some features will be disabled.")
+
+        self.timer = QTimer()
+        self.cap = None
+        self.speed = 1
+
+
+        self.input_path = file
+        print(file)
+        self.input_type = 1
+        self.file_name_list = ntpath.basename(file).split(".", 1)
+        #self.my_ref_folder = f"/jobs/rnd/internal_animation_playground_e000001/work/sandbox/emily/animate/refTest/references/{self.file_name_list[0]}/"
+        self.my_ref_folder = f"C:/Users/emimo/projects/maya/toolBuilding/referenceManager/references/{self.file_name_list[0]}"
+
+        #Ui elements
+
+        # VIDEO
+        self.video_label = cw.CropLabel()
+        self.video_label.setAlignment(Qt.AlignCenter)
+        self.video_label.setMinimumSize(1, 1)
+        self.video_label.setStyleSheet("background-color: black; color: white;")
+        self.video_label.setScaledContents(False)
+
+        # FRAME COUNT
+        self.FC_label = QLabel("1", self)
+        self.FC_label.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+        self.FC_label.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Maximum))
+        self.FC_label.setStyleSheet(f"background-color: black; color: rgb{self.ecol(1)};")
+        self.FC_label.setFont(self.efont(12))
+
+        self.frameCount_label = QLabel("1 frames", self)
+        self.frameCount_label.setContentsMargins(0, 0, 0, 5)
+        self.frameCount_label.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+        self.frameCount_label.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Maximum))
+        self.frameCount_label.setStyleSheet(f"background-color: black; color: rgb{self.ecol(.8)};")
+        self.frameCount_label.setMinimumSize(QSize(60, 0))
+        self.frameCount_label.setFont(self.efont(7))
+        
+        # SLIDER
+        self.slider = cw.VideoRangeSlider()
+        self.slider.setSizePolicy(QSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Maximum))
+        self.slider.setEnabled(self.input_type)
+
+        # PLAYBACK SPEED
+        self.empty_label = QLabel("", self)
+        self.empty_label.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Maximum))
+        self.empty_label.setFont(self.efont(12))
+
+        self.playbackSpeed_label = QLabel(self)
+        self.playbackSpeed_label.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Maximum))
+        self.playbackSpeed_label.setMinimumSize(QSize(30, 0))
+        self.playbackSpeed_label.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+        self.playbackSpeed_label.setStyleSheet(f"background-color: black; color: rgb{self.ecol(.8)};")
+        self.playbackSpeed_label.setContentsMargins(0, 0, 6, 5)
+        self.playbackSpeed_label.setFont(self.efont(7))
+
+        # FPS SETTER
+        self.setFPS_Label = QLabel("", self)
+        self.setFPS_Label.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
+        self.setFPS_Label.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Maximum))
+        self.setFPS_Label.setStyleSheet(f"color: rgb{self.ecol(1)};")
+        self.setFPS_Label.setFont(self.efont(12))
+        self.setFPS_Label.setText(f"FPS [{str(1000/self.speed)}]:")
+
+        self.setFPS_lineEdit = cw.AutoLineEdit()
+        self.setFPS_lineEdit.setValidator(QIntValidator(1, 2147483647))
+        self.setFPS_lineEdit.returnPressed.connect(self.set_stacked_widget)
+        self.setFPS_lineEdit.editingFinished.connect(self.editing_finished)
+        self.setFPS_lineEdit.setStyleSheet(styleSheet.Black_line_edit_style())
+
+        
+        # SEPARATOR
+        self.line = QFrame(self)
+        self.line.setFrameShape(QFrame.Shape.HLine)
+        self.line.setFrameShadow(QFrame.Shadow.Sunken)
+
+        # DATA TABLE
+
+        def data_title(name, style):
+            dataLabel = QLabel(name, self)
+            dataLabel.setSizePolicy(QSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Maximum))
+            dataLabel.setContentsMargins(50, 0, 0, 0)
+            dataLabel.setMargin(4)
+            style_func = getattr(styleSheet, f"{style}_style", None)
+            dataLabel.setStyleSheet(style_func())
+            return dataLabel
+
+        self.sourceData_label = data_title("Source data", "Dark")
+        self.sourceData_label.setContentsMargins(0, 4, 0, 3)
+        self.sourceData_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.convertForMaya_label = data_title("Cconvert for Maya", "Dark")
+        self.convertForMaya_label.setContentsMargins(0, 4, 0, 3)
+        self.convertForMaya_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.sourceFramerate_label = data_title("", "Light")
+        self.sourceResolution_label = data_title("", "Dark")
+        self.sourceFormat_label = data_title("", "Light")
+        self.sourceStartAt_label = data_title("", "Dark")
+
+        def data_label(name, style):
+            datalabel = QLabel(name, self)
+            datalabel.setMinimumSize(QSize(90, 10))
+            datalabel.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
+            datalabel.setContentsMargins(15, 0, 0, 0)
+            style_func = getattr(styleSheet, f"{style}_style", None)
+            datalabel.setStyleSheet(style_func())
+            return datalabel
+
+        self.fill_label = data_label("", "Dark")
+        self.framerate_label = data_label("Framerate", "Light")
+        self.resolution_label = data_label("Resolution", "Dark")
+        self.format_label = data_label("Fromat", "Light")
+        self.startAt_label = data_label("Start at", "Dark")
+
+
+        def my_comboBox(n, style):
+            if n == 0:
+                myComboBox = QComboBox(self)
+            elif n == 1:
+                myComboBox = cw.EComboBox(self)
+            myComboBox.setMinimumHeight(10)
+            myComboBox.setSizePolicy(QSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Minimum))
+            style_func = getattr(styleSheet, f"{style}_style", None)
+            myComboBox.setStyleSheet(style_func())
+            return myComboBox
+        
+        self.framerate_comboBox = my_comboBox(1, "Light")
+        self.resolution_comboBox = my_comboBox(0, "Dark")
+        self.format_comboBox = my_comboBox(0, "Light")
+        self.startAt_comboBox = my_comboBox(1, "Dark")
+
+        
+
+
+        # MY BUTTONS 
+        def my_PushButton(name,size):
+            myPushButton = cw.IconButton(name)
+            myPushButton.setObjectName(name)
+            sizePolicy2 = QSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+            sizePolicy2.setHorizontalStretch(0)
+            sizePolicy2.setVerticalStretch(0)
+            sizePolicy2.setHeightForWidth(myPushButton.sizePolicy().hasHeightForWidth())
+            myPushButton.setSizePolicy(sizePolicy2)
+            myPushButton.setEnabled(self.input_type)
+            myPushButton.setMinimumSize(QSize(size, 24))
+
+            style_func = getattr(styleSheet, f"{name}_style", None)
+            if callable(style_func):  
+                myPushButton.setStyleSheet(styleSheet.button_style() + style_func())
+            else:
+                myPushButton.setStyleSheet(styleSheet.button_style())
+            return myPushButton
+
+        def my_button_layout(size, **kwargs):
+            twoButton_layout = QHBoxLayout()
+            twoButton_layout.setSpacing(0)
+            for name in kwargs.values():
+                twoButton_layout.addWidget(my_PushButton(name, size))
+            return twoButton_layout
+
+
+        self.helpLine_lineEdit = QLineEdit()
+        self.helpLine_lineEdit.setReadOnly(True)
+        self.helpLine_lineEdit.setStyleSheet(styleSheet.Help_line_style())
+
+        self.reset_pushbutton = cw.IconButton("Reset")
+        self.reset_pushbutton.setFixedSize(32, 28)
+        self.reset_pushbutton.setStyleSheet(styleSheet.Dark_button_style())
+
+        self.info_pushbutton = cw.IconButton("Info")
+        self.info_pushbutton.setFixedSize(32, 28)
+        self.info_pushbutton.setStyleSheet(styleSheet.Dark_button_style())
+
+        self.confirm_pushbutton = QPushButton("Confirm")
+        self.confirm_pushbutton.setMinimumSize(120, 30)
+        self.confirm_pushbutton.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Maximum))
+        self.confirm_pushbutton.setStyleSheet(styleSheet.Dark_button_style())
+
+        # Layout
+        layout = QVBoxLayout()
+        layout.setSpacing(0)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        layout.addWidget(self.video_label)
+
+        slider_widget = cw.FilledWidget(38, "black", self)
+        self.stacked_layout = QStackedLayout()
+
+        self.slider_layout = cw.FilledWidget(38, "black", self)
+        self.FC_layout = QVBoxLayout()
+        self.FC_layout.addWidget(self.FC_label)
+        self.FC_layout.addWidget(self.frameCount_label)
+        self.slider_layout.layout.addLayout(self.FC_layout)
+        self.slider_layout.layout.addWidget(self.slider)
+        self.fps_layout = QVBoxLayout()
+        self.fps_layout.addWidget(self.empty_label)
+        self.fps_layout.addWidget(self.playbackSpeed_label)
+        self.slider_layout.layout.addLayout(self.fps_layout)
+
+        self.setfps_layout = cw.FilledWidget(38, "black", self)
+        self.setfps_layout.layout.setContentsMargins(10, 0, 10, 0)
+        self.setfps_layout.layout.setSpacing(10)
+        self.setfps_layout.layout.addWidget(self.setFPS_Label)
+        self.setfps_layout.layout.addWidget(self.setFPS_lineEdit)
+
+        self.stacked_layout.addWidget(self.slider_layout)
+        self.stacked_layout.addWidget(self.setfps_layout)
+        slider_widget.layout.addLayout(self.stacked_layout)
+
+        layout.addWidget(slider_widget)
+
+        playBar_layout = cw.FilledWidgetGradient(32, self)
+        playBar_layout.layout.addItem(QSpacerItem(120, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
+        playBar_layout.layout.addItem(QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
+        playBar_layout.layout.addLayout(my_button_layout( 33, name1 = u"Step_one_frame_backwards", name2 = u"Step_one_frame_forwards"))
+        playBar_layout.layout.addItem(QSpacerItem(30, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
+        playBar_layout.layout.addLayout(my_button_layout( 55, name1 = u"Play_forwards"))
+        playBar_layout.layout.addItem(QSpacerItem(30, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
+        playBar_layout.layout.addLayout(my_button_layout( 33, name1 = u"Set_range_start", name2 = u"Set_range_end"))
+        playBar_layout.layout.addItem(QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
+        playBar_layout.layout.addLayout(my_button_layout( 30, name1 = u"Flop", name2 = u"Crop", name3 = u"Flip", name4 = u"Timer"))
+        playBar_layout.layout.setContentsMargins(10, 0, 10, 2)
+
+        layout.addWidget(playBar_layout)
+        
+        self.gridLayout = QGridLayout()
+        self.gridLayout.addWidget(self.fill_label, 0, 0, 1, 1)
+        self.gridLayout.addWidget(self.sourceData_label, 0, 1, 1, 1)
+        self.gridLayout.addWidget(self.convertForMaya_label, 0, 2, 1, 1)
+        self.gridLayout.addWidget(self.framerate_label, 1, 0, 1, 1)
+        self.gridLayout.addWidget(self.sourceFramerate_label, 1, 1, 1, 1)
+        self.gridLayout.addWidget(self.resolution_label, 2, 0, 1, 1)
+        self.gridLayout.addWidget(self.sourceResolution_label, 2, 1, 1, 1)
+        self.gridLayout.addWidget(self.format_label, 3, 0, 1, 1)
+        self.gridLayout.addWidget(self.sourceFormat_label, 3, 1, 1, 1)
+        self.gridLayout.addWidget(self.startAt_label, 4, 0, 1, 1)
+        self.gridLayout.addWidget(self.sourceStartAt_label, 4, 1, 1, 1)
+        self.gridLayout.addWidget(self.framerate_comboBox, 1, 2, 1, 1)
+        self.gridLayout.addWidget(self.resolution_comboBox, 2, 2, 1, 1)
+        self.gridLayout.addWidget(self.format_comboBox, 3, 2, 1, 1)
+        self.gridLayout.addWidget(self.startAt_comboBox, 4, 2, 1, 1)     
+        
+        layout.addLayout(self.gridLayout)
+        layout.addWidget(cw.FilledWidget(4, "#111111", self))
+        layout.addWidget(cw.FilledWidget(1, "#333333", self))
+
+        confirm_layout = cw.FilledWidget(38, "#212121", self)
+        confirm_layout.layout.setSpacing(4)
+        confirm_layout.layout.addItem(QSpacerItem(10, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
+        confirm_layout.layout.addWidget(self.reset_pushbutton)
+        confirm_layout.layout.addWidget(self.info_pushbutton)
+        confirm_layout.layout.addWidget(self.helpLine_lineEdit)
+        confirm_layout.layout.addWidget(self.confirm_pushbutton)
+        confirm_layout.layout.addItem(QSpacerItem(10, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
+
+        layout.addWidget(confirm_layout)
+        
+        self.setLayout(layout)
+
+        # Event handlers
+        self.findChild(QPushButton, "Step_one_frame_backwards").clicked.connect(self.step_backwards)
+        self.findChild(QPushButton, "Step_one_frame_forwards").clicked.connect(self.step_forwards)
+        self.findChild(QPushButton, "Play_forwards").clicked.connect(self.toggle_playback)
+        self.timer.timeout.connect(self.update_frame)
+        self.slider.valueChanged.connect(self.set_frame)
+        self.findChild(QPushButton, "Set_range_start").clicked.connect(self.range_start)
+        self.findChild(QPushButton, "Set_range_end").clicked.connect(self.range_end)
+        self.framerate_comboBox.currentIndexChanged.connect(self.set_custom_framerate)
+        self.startAt_comboBox.currentIndexChanged.connect(self.set_custom_startAt)  
+        self.slider.in_out_valueChanged.connect(self.FC_update)   
+        self.slider.slider_active.connect(self.toggle_02)  
+        self.findChild(QPushButton, "Crop").clicked.connect(self.crop_vis)
+        self.findChild(QPushButton, "Flip").clicked.connect(self.flip_vis)
+        self.findChild(QPushButton, "Flop").clicked.connect(self.flop_vis)
+        self.findChild(QPushButton, "Timer").clicked.connect(self.set_stacked_widget)
+        self.reset_pushbutton.clicked.connect(self.reset)
+        self.confirm_pushbutton.clicked.connect(self.ffmpeg_command)
+        self.video_label.sig_forwards.connect(self.step_forwards)
+        self.video_label.sig_backwards.connect(self.step_backwards)
+        
+
+        # Track
+        self.is_playing = False
+        self.is_playing02 = False
+        self.start_time = 0
+        self.end_time = 0
+        self.crop = False
+        self.flip = False
+        self.flop = False
+        self.metadata = None
+
+    def printsilly(self):
+        print("signal received")
+
+    def get_metadata(self, video_path):
+        cmd = [
+                "ffprobe",
+                "-v", "error",
+                "-show_entries", "format=duration:stream=width,height,codec_name,r_frame_rate,avg_frame_rate,nb_frames,codec_type,pix_fmt, color_space,color_transfer,color_primaries",
+                "-of", "json",
+                video_path
+            ]
+
+        if os.name == 'nt':
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW  # Hides terminal popup on Windows
+        else:
+            startupinfo = None
+
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, startupinfo=startupinfo)
+        vid_stream = next((stream for stream in json.loads(result.stdout)['streams'] if stream['codec_type'] == 'video'), None)
+        if not vid_stream:
+            print("Error: No video stream found.")
+            return None
+        
+        num, den = map(int, vid_stream["r_frame_rate"].split('/'))
+        framerate = num / den
+        
+        self.metadata = {
+            "Width": vid_stream.get("width"),
+            "Height": vid_stream.get("height"),
+            "Framerate": round(framerate, 2),
+            "Framecount": vid_stream.get("nb_frames"),
+            "Resolution": str(vid_stream.get("width")) + " x " + str(vid_stream.get("height")),
+            "Colourspace": vid_stream.get("pix_fmt"),  # Example: "yuv420p", "rgb24"
+            #"Colourinfo": vid_stream.get("color_space") + vid_stream.get("color_transfer") + vid_stream.get("color_primaries")
+        }
+        #print (self.metadata["Colourspace"], self.metadata["Colourinfo"])
+   
+    def set_custom_framerate(self):
+        if self.framerate_comboBox.currentText() == "custom":
+            self.framerate_comboBox.setEditable(True)
+            self.framerate_comboBox.clearEditText()
+            self.framerate_comboBox.lineEdit().setStyleSheet(styleSheet.Light_style())
+            self.framerate_comboBox.lineEdit().setValidator(QIntValidator(1, 2147483647))
+        else: 
+            self.framerate_comboBox.setEditable(False)
+            self.validate()
+    
+    def set_custom_startAt(self):
+        if self.startAt_comboBox.currentText() == "custom":
+            self.startAt_comboBox.setEditable(True)
+            self.startAt_comboBox.clearEditText()
+            self.startAt_comboBox.lineEdit().setStyleSheet(styleSheet.Dark_style())
+            self.startAt_comboBox.lineEdit().setValidator(QIntValidator(-2147483647, 2147483647))
+        else: 
+            self.startAt_comboBox.setEditable(False)
+            self.validate()
+    
+    def reset(self):
+        self.slider.variables["_outPoint"] = self.slider.maximum()
+        self.slider.variables["_inPoint"] = self.slider.minimum()
+        self.slider.variables["_frame"] = self.slider.minimum()
+        
+        self.crop = False
+        self.video_label.set_crop_to_image(self.metadata.get("Width"), self.metadata.get("Height"))
+        self.flip = False
+        self.flop = False
+        fps = self.metadata.get("Framerate")
+        self.set_speed(fps)
+        self.set_frame(self.slider.variables.get("_frame"))
+
+        self.framerate_comboBox.setCurrentIndex(0)
+        self.resolution_comboBox.setCurrentIndex(1)
+        self.format_comboBox.setCurrentIndex(0)
+        self.startAt_comboBox.setCurrentIndex(0)
+
+        self.update()
+        self.slider.update()
+
+    def load_image(self):
+        QPixmap(self.input_path)
+
+    def load_video(self):
+        """Sets video settings"""
+        self.get_metadata(self.input_path)
+        self.cap = self.cv2.VideoCapture(self.input_path)
+        self.slider.setMaximum(int(self.cap.get(self.cv2.CAP_PROP_FRAME_COUNT))-1)
+        self.slider.variables["_outPoint"] = self.slider.maximum()
+        self.slider.setEnabled(True)
+        self.show_frame()
+        self.end_time = int(self.cap.get(self.cv2.CAP_PROP_FRAME_COUNT))
+        self.frameCount_label.setText(str(self.metadata.get("Framecount")) + " frames")
+        self.FC_update()
+        fps = self.metadata.get("Framerate")
+        self.set_speed(fps)
+
+        self.video_label.set_crop_to_image(self.metadata.get("Width"), self.metadata.get("Height"))
+
+        self.sourceFramerate_label.setText(str(fps) + " fps")
+        self.sourceResolution_label.setText(self.metadata.get("Resolution"))
+        self.sourceFormat_label.setText(self.file_name_list[1])
+
+        framerate_list = [
+            "Scene frame rate ( " + str(sceneFrameRate) + " fps)",
+            "Source frame rate( " + str(self.metadata.get("Framerate", "Unknown")) + " )",
+            "custom"
+        ]
+        self.framerate_comboBox.addItems(framerate_list)
+        resolution_list = [
+            "small ( 480p )",
+            "medium ( 720p )",
+            "large ( 1080p )",
+            "use source( " + self.metadata.get("Resolution") + " )"
+            ]
+        self.resolution_comboBox.addItems(resolution_list)
+        self.resolution_comboBox.setCurrentIndex(1)
+        self.format_comboBox.addItems(["JPEG", "PNG"])
+        startAt_list = [
+            "Animation start time ( " + str(animationStartTime) + " )",
+            "Playback start time ( " + str(playbackStartTime) + " )",
+            "custom",
+            "match audio waveform to scene"            
+        ]
+        self.startAt_comboBox.addItems(startAt_list)
+
+    def set_speed(self, fps):
+        self.playbackSpeed_label.setText(str(fps) + " fps")
+        self.setFPS_Label.setText(f"FPS [{str(int(fps))}]:")
+        self.speed = fps
+
+    def load_scale(self, pixmap):
+
+        scale_factor = min(self.video_label.width() / pixmap.width(), self.video_label.height() / pixmap.height())
+        w = pixmap.width() * scale_factor
+        h = pixmap.height() * scale_factor
+
+        scaled_pixmap = pixmap.scaled(w, h, Qt.KeepAspectRatio, Qt.FastTransformation)
+
+        transform = QTransform()
+        if self.flip:
+            transform.scale(1, -1)
+        if self.flop:
+            transform.scale(-1, 1)
+
+        scaled_pixmap = scaled_pixmap.transformed(transform, Qt.FastTransformation)
+        #scaled_pixmap = QPixmap.fromImage(image)
+
+        self.video_label.setPixmap(scaled_pixmap)
+
+    def show_frame(self):
+        """Displays the current frame of the video."""
+        if self.input_type == 0:
+            self.load_scale(QPixmap(self.input_path))
+
+        else:
+            ret, frame = self.cap.read()
+            if ret and self.is_playing == False:
+                frame = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
+                height, width, channel = frame.shape
+                bytes_per_line = 3 * width
+                q_img = QImage(frame.data, width, height, bytes_per_line, QImage.Format_RGB888)
+                self.load_scale(QPixmap.fromImage(q_img))
+
+            elif ret and self.is_playing:
+                n = self.cap.get(self.cv2.CAP_PROP_POS_FRAMES)
+                if n < self.slider.variables["_outPoint"]:
+                    frame = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
+                    height, width, channel = frame.shape
+                    bytes_per_line = 3 * width
+                    q_img = QImage(frame.data, width, height, bytes_per_line, QImage.Format_RGB888)
+                    self.load_scale(QPixmap.fromImage(q_img))
+                else:
+                    self.toggle_playback()
+
+            elif not ret and self.is_playing:
+                self.toggle_playback()
+
+    def set_stacked_widget(self):
+        if self.stacked_layout.currentWidget() == self.slider_layout:
+            self.stacked_layout.setCurrentWidget(self.setfps_layout)
+            self.findChild(QPushButton, "Timer").setEnabled(False)
+            self.setFPS_lineEdit.clear()
+            self.setFPS_lineEdit.setFocus()
+        elif self.stacked_layout.currentWidget() == self.setfps_layout:
+            if self.setFPS_lineEdit.hasAcceptableInput():
+                fps = float(self.setFPS_lineEdit.text())
+                self.set_speed(fps)
+            self.editing_finished()
+
+    def editing_finished(self):
+        self.stacked_layout.setCurrentWidget(self.slider_layout)
+        self.findChild(QPushButton, "Timer").setEnabled(True)
+        self.update()
+
+    def FC_update(self):
+        self.FC_label.setText(str(self.slider.variables.get("_outPoint") - self.slider.variables.get("_inPoint")))
+    
+    def step_backwards(self):
+        if self.slider.variables["_frame"] > self.slider.minimum():
+            self.slider.setValue(self.slider.variables.get("_frame") - 1)
+            
+    def step_forwards(self):
+        if self.slider.variables["_frame"] < self.slider.maximum():
+            self.slider.setValue(self.slider.variables.get("_frame") + 1)
+            
+
+    def toggle_playback(self):
+        """Play/Pause the video."""
+        if self.is_playing: #Stop
+            self.timer.stop()
+            self.slider.valueChanged.connect(self.set_frame)
+            self.update()
+            
+        else: #Play
+            if self.slider.variables["_frame"] >= self.slider.variables["_outPoint"] or self.slider.variables["_frame"] < self.slider.variables["_inPoint"]:
+                self.slider.setValue(self.slider.variables.get("_inPoint"))
+            self.slider.valueChanged.disconnect(self.set_frame)
+            self.timer.start(1000/self.speed)
+            self.update()
+        self.is_playing = not self.is_playing
+        self.is_playing02 = not self.is_playing02
+
+    def toggle_02(self, is_active):
+        #print (f"emmited {is_active}")
+        if self.is_playing02 and is_active:
+            self.timer.stop()
+            self.slider.valueChanged.connect(self.set_frame)
+            self.update()
+        elif self.is_playing02 and not is_active:
+            if self.slider.variables["_frame"] >= self.slider.variables["_outPoint"] or self.slider.variables["_frame"] < self.slider.variables["_inPoint"]:
+                self.slider.setValue(self.slider.variables.get("_inPoint"))
+            self.slider.valueChanged.disconnect(self.set_frame)
+            self.timer.start(1000/self.speed)
+            self.update()
+
+        self.is_playing = not self.is_playing
+            
+        
+    def update_frame(self):
+        """Updates the video frame on timer event."""
+        self.show_frame()
+        self.slider.variables["_frame"] = int(self.cap.get(self.cv2.CAP_PROP_POS_FRAMES))
+        self.slider.update()
+        #self.slider.setValue(int(self.cap.get(cv2.CAP_PROP_POS_FRAMES)))
+
+    def set_frame(self, position):
+        """Sets the video to a specific frame based on slider."""
+        self.cap.set(self.cv2.CAP_PROP_POS_FRAMES, position)
+        self.show_frame()
+
+    def range_start(self):
+        if self.slider.variables["_frame"] != self.slider.maximum():
+            self.slider.variables["_inPoint"] = self.slider.variables.get("_frame")
+            if self.slider.variables["_inPoint"] >= self.slider.variables["_outPoint"]:
+                self.slider.variables["_outPoint"] = self.slider.variables.get("_inPoint") + 1
+            self.frameCount_label.setText(str(self.slider.maximum() - self.slider.minimum()) + " frames")
+            self.FC_update()
+            self.slider.repaint()
+
+    def range_end(self):
+        if self.slider.variables["_frame"] != self.slider.minimum():
+            self.slider.variables["_outPoint"] = self.slider.variables.get("_frame")
+            if self.slider.variables["_outPoint"] <= self.slider.variables["_inPoint"]:
+                self.slider.variables["_inPoint"] = self.slider.variables.get("_outPoint") - 1
+            self.frameCount_label.setText(str(self.slider.maximum() - self.slider.minimum()) + " frames")
+            self.FC_update()
+            self.slider.repaint()
+
+    def crop_vis(self):
+        self.crop = not self.crop
+        self.update()
+    
+    def flip_vis(self):
+        self.flip = not self.flip
+        self.video_label.crop_flip()
+        self.set_frame(self.slider.variables.get("_frame"))
+        
+    def flop_vis(self):
+        self.flop = not self.flop
+        self.video_label.crop_flop()
+        self.set_frame(self.slider.variables.get("_frame"))
+            
+    def resizeEvent(self, event):
+        if self.cap:
+            self.set_frame(self.slider.variables.get("_frame"))
+        if self.input_type == 0:
+            self.show_frame()
+        super().resizeEvent(event) 
+
+    def mousePressEvent(self, event):
+        if QApplication.focusWidget():  # Check if any widget has focus
+            QApplication.focusWidget().clearFocus()  # Explicitly remove focus
+        super().mousePressEvent(event)
+
+    def efont(self, size):
+         font = QFont()
+         font.setPointSize(size)
+         return font       
+    
+    def ecol(self, brt):
+        colour = (
+            int(169 * brt),
+            int(169 * brt),
+            int(169 * brt)
+        )
+        return f"({colour[0]}, {colour[1]}, {colour[2]})"
+
+    def numeric(self, txt):
+        for i in txt:
+            if (i.isnumeric() == False) and (i != ".") :
+                txt = txt.replace(i, "")
+        return(int(float(txt)))
+    
+    def validate(self):
+        self.framerate_comboBox.clearFocus()
+        self.startAt_comboBox.clearFocus()
+        if int(self.framerate_comboBox.currentIndex()) != 2 and int(self.startAt_comboBox.currentIndex()) != 2:
+            self.helpLine_lineEdit.clear()
+            return True
+        else: 
+            self.helpLine_lineEdit.setText("🔴 Not Acceptable sorry")
+            return False
+
+    def ffmpeg_build_command(self):
+        input_fps = self.metadata.get("Framerate")
+        height = self.metadata.get("Height")
+        start_time = self.slider.variables.get("_inPoint") / input_fps
+        duration = (self.slider.variables.get("_outPoint") - self.slider.variables.get("_inPoint"))/ input_fps
+        vf_list = []
+
+        if self.flip:
+            vf_list.append('vflip')
+        
+        if self.flop:
+            vf_list.append('hflip')
+        
+        if self.crop:
+            crop = self.video_label.ffmpeg_crop()
+            height = abs(self.video_label.crop_points["bottomLeft"].y() - self.video_label.crop_points["topLeft"].y())
+            vf_list.append(crop)
+
+        if self.resolution_comboBox.currentIndex() <= 3:
+            vf_list.append(f"scale=-2:'min({self.numeric(self.resolution_comboBox.currentText())}, {height})'")
+
+        exportfps = 'fps=' + str(input_fps / self.speed * self.numeric(self.framerate_comboBox.currentText()))
+        vf_list.append(exportfps)
+
+        file_path = f"{self.my_ref_folder}{self.file_name_list[0]}.%04d." + self.format_comboBox.currentText().casefold()
+        start_number = f"{self.numeric(self.startAt_comboBox.currentText())}"
+        
+        
+        FFmpegCommands = [
+            "ffmpeg",
+
+            "-ss",
+            str(start_time), 
+            
+            "-i", 
+            self.input_path,
+
+            "-t",
+            str(duration), 
+
+            "-vf",
+            f"{', '.join(vf_list)}",
+
+            "-start_number", 
+            start_number,
+
+            "-q:v","0",
+
+
+            file_path,
+        ]
+
+        return FFmpegCommands, file_path, start_number
+    
+    def copy_to_folder(self, folder_path):
+        dst_file = folder_path / ntpath.basename(self.input_path)
+        if not dst_file.exists():
+            shutil.copy2(self.input_path, dst_file)
+
+    def delete_old(self, folder_path):
+        image_extensions = [".jpeg", ".png"]
+        for file in folder_path.iterdir():
+            if file.suffix.lower() in image_extensions and file.is_file():
+                file.unlink()
+    
+    def ffmpeg_command(self):
+        if self.validate():
+
+            self.close()
+            cameraDialog(self.file_name_list[0], self.ffmpeg_build_command()[1], self.ffmpeg_build_command()[2])
+
+
+            folder_path = Path(self.my_ref_folder)
+            folder_path.mkdir(parents=True, exist_ok=True)
+
+            self.copy_to_folder(folder_path)
+            self.delete_old(folder_path)
+
+            ffmpeg_thread = threading.Thread(target=self.run_ffmpeg)
+            ffmpeg_thread.start()
+
+            
+        else:
+            self.validate()
+
+    def run_ffmpeg(self):
+        
+        if os.name == 'nt':
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW  # Hides terminal popup on Windows
+        else: 
+            startupinfo = None
+
+        with open(f"{self.my_ref_folder}ffmpeg_log.txt", "w") as log:
+            subprocess.run(self.ffmpeg_build_command()[0], stdout=log, stderr=log, startupinfo=startupinfo)
+
+def cameraDialog(name, file_path, start_number):
+    cams = cmds.listCameras()
+
+    cmds.window("CameraDialog", maximizeButton = False, minimizeButton = False)
+    cmds.columnLayout(adjustableColumn = True, w=100)
+    #, margins=9, generalSpacing=9
+    cmds.columnLayout(adjustableColumn = True, w=100)
+    #, generalSpacing=4
+    cmds.text("Pick a camera:", align="left")
+    cmds.optionMenu("cameraChoices")
+    for cam in cams:
+        cmds.menuItem(label = cam)
+
+    cmds.setParent('..')
+    cmds.rowLayout( numberOfColumns=2, columnWidth=(50, 50))
+    #, adjustableColumn=(1, 2), generalSpacing = 9
+    cmds.button("cancel", height=24, command=lambda x:cmds.deleteUI("CameraDialog"))
+    cmds.button("confirm", command=lambda x:nameDialog(name, file_path, start_number), height=24)
+
+    cmds.showWindow()
+
+def nameDialog(name, file_path, start_number):
+    choiceCam = cmds.optionMenu("cameraChoices", q=True, value=True)
+    cmds.deleteUI("CameraDialog")
+
+    result = cmds.promptDialog(
+        title = "Name Dialog",
+        message = "Please name your image plane:",
+        text = name,
+        button = ["cancel", "confirm"],
+        defaultButton = "confirm",
+        cancelButton = "cancel",
+        dismissString = "cancel",
+    )
+    if result == "confirm":
+        im_name = cmds.promptDialog(query=True, text=True)
+        if im_name == '':
+            im_name = 'noNameImagePlane'        
+        createImgaePlane(choiceCam, im_name, file_path, start_number)
+
+def createImgaePlane(choiceCam, im_name, file_path, start_number):
+    im_name = im_name + "_plate"
+    start_number = str(start_number).zfill(4)
+    file_path = file_path.replace("%04d", start_number)
+    print (file_path)
+
+    createdImagePlane = cmds.imagePlane( camera=choiceCam, fileName=file_path, name=im_name, showInAllViews=False, lookThrough=choiceCam)
+    cmds.setAttr(createdImagePlane[0]+".useFrameExtension", 1)
+    cmds.setAttr(createdImagePlane[0]+".displayOnlyIfCurrent", 1)
+    cmds.setAttr(createdImagePlane[0]+".fit", 2)
+    cmds.setAttr(createdImagePlane[0]+".frameOffset", 0)
+    #remove the colourspace attr for non etc, as it relys on the current occio.config and lut existing in the config
+    #or do the colour config properly but idk
+    cmds.setAttr(createdImagePlane[0]+".colorSpace", "Output - sRGB", type="string")
+    cmds.setAttr(createdImagePlane[0]+".ignoreColorSpaceFileRules", 1)
+
+    #Extending Frame Cache to be long enough! Add an extra 100 frames for just in case!
+    shot_length = cmds.playbackOptions(q=1, aet=1) - cmds.playbackOptions(q=1, ast=1)
+    cmds.setAttr(createdImagePlane[0]+".frameCache", int(shot_length)+100)
+    cmds.rename(createdImagePlane[0], im_name)		
+    cmds.select(im_name) 
+
+def run(file):
+    global window
+    try:
+        window.close()  # Close previous window if it exists
+    except:
+        pass
+
+    window = ReferenceEditor(file)
+    window.resize(800, 700)
+    window.setWindowTitle("Reference Manager")
+    window.load_video()
+    window.show()
+    initShortcut()
+
+
+
+# To do:
+'''
+image sequence drop handling
+focus range slide and hotkeys(hotkeys might not be possible)
+clear cache/memory when deleting the images as it has trouble when you import the same video again
+hotkeys?
+
+
+-manager
+-context
+-make the editor available from the context and manager
+-pyside6 for maya 2025+
+
+'''
