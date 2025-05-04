@@ -22,24 +22,15 @@ import inspect
 from shiboken2 import wrapInstance
 from functools import partial
 
+
 def _getMainMayaWindow():
     mayaMainWindowPtr = omui.MQtUtil.mainWindow()
     mayaMainWindow = wrapInstance(int(mayaMainWindowPtr), QWidget)
     return mayaMainWindow
 
-def shortcutActivated(shortcut):
-    if "scriptEditor" in cmds.getPanel(wf=1):
-        cmds.scriptEditorInfo(clearHistory=1)
-    else:
-        shortcut.setEnabled(0)
-        e = QKeyEvent(QEvent.KeyPress, Qt.Key_H, Qt.CTRL)
-        QCoreApplication.postEvent(_getMainMayaWindow(), e)
-        cmds.evalDeferred(partial(shortcut.setEnabled, 1))
-
-def initShortcut():
-    shortcut = QShortcut(QKeySequence(Qt.CTRL + Qt.Key_H), _getMainMayaWindow())
-    shortcut.setContext(Qt.ApplicationShortcut)
-    shortcut.activated.connect(partial(shortcutActivated, shortcut))
+sceneFrameRate = 1.0 / om.MTime(1.0, om.MTime.uiUnit()).asUnits(om.MTime.kSeconds) 
+animationStartTime = oma.MAnimControl.animationStartTime().value()
+playbackStartTime = oma.MAnimControl.minTime().value()
 
 def import_scoped_cv2():
     
@@ -60,14 +51,11 @@ def import_scoped_cv2():
         if cv2_path in sys.path:
             sys.path.remove(cv2_path)
 
-
-sceneFrameRate = 1.0 / om.MTime(1.0, om.MTime.uiUnit()).asUnits(om.MTime.kSeconds) 
-animationStartTime = oma.MAnimControl.animationStartTime().value()
-playbackStartTime = oma.MAnimControl.minTime().value()
-
 class ReferenceEditor(QWidget):
     def __init__(self, file, parent=None):
-        super().__init__(parent)
+        super(ReferenceEditor, self).__init__(parent)
+        self.installEventFilter(self)
+
 
         self.cv2 = import_scoped_cv2()
         if not self.cv2:
@@ -79,12 +67,11 @@ class ReferenceEditor(QWidget):
 
 
         self.input_path = file
-        print(file)
         self.input_type = 1
-        self.file_name_list = ntpath.basename(file).split(".", 1)
+        self.file_name_list = ntpath.basename(file).rsplit(".", 1)
         #self.my_ref_folder = f"/jobs/rnd/internal_animation_playground_e000001/work/sandbox/emily/animate/refTest/references/{self.file_name_list[0]}/"
         self.my_ref_folder = f"C:/Users/emimo/projects/maya/toolBuilding/referenceManager/references/{self.file_name_list[0]}"
-
+        print (self.file_name_list, self.my_ref_folder)
         #Ui elements
 
         # VIDEO
@@ -351,6 +338,48 @@ class ReferenceEditor(QWidget):
         self.video_label.sig_backwards.connect(self.step_backwards)
         
 
+        #Shortcuts
+        self.sh_range_start = QShortcut(QKeySequence(Qt.Key_BracketLeft), _getMainMayaWindow())
+        self.sh_range_start.setContext(Qt.ApplicationShortcut)
+        self.sh_range_start.activated.connect(self.range_start)
+
+        self.sh_range_end = QShortcut(QKeySequence(Qt.Key_BracketRight), _getMainMayaWindow())
+        self.sh_range_end.setContext(Qt.ApplicationShortcut)
+        self.sh_range_end.activated.connect(self.range_end)
+
+        self.sh_toggle_playback1 = QShortcut(QKeySequence(Qt.Key_L), _getMainMayaWindow())
+        self.sh_toggle_playback2 = QShortcut(QKeySequence(Qt.Key_Space), _getMainMayaWindow())
+        self.sh_toggle_playback3 = QShortcut(QKeySequence(Qt.AltModifier + Qt.Key_V), _getMainMayaWindow())
+        self.sh_toggle_playback4 = QShortcut(QKeySequence(Qt.MetaModifier + Qt.Key_V), _getMainMayaWindow())
+        for shortcut in [self.sh_toggle_playback1, self.sh_toggle_playback2, self.sh_toggle_playback3, self.sh_toggle_playback4]:
+            shortcut.setContext(Qt.ApplicationShortcut)
+            shortcut.activated.connect(self.toggle_playback)
+
+        self.sh_step_backwards = QShortcut(QKeySequence(Qt.Key_Comma), _getMainMayaWindow())
+        self.sh_step_backwards.setContext(Qt.ApplicationShortcut)
+        self.sh_step_backwards.activated.connect(self.step_backwards)
+
+        self.sh_step_forwards = QShortcut(QKeySequence(Qt.Key_Period), _getMainMayaWindow())
+        self.sh_step_forwards.setContext(Qt.ApplicationShortcut)
+        self.sh_step_forwards.activated.connect(self.step_forwards)
+
+        self.sh_set_framerate = QShortcut(QKeySequence(Qt.ShiftModifier + Qt.Key_F), _getMainMayaWindow())
+        self.sh_set_framerate.setContext(Qt.ApplicationShortcut)
+        self.sh_set_framerate.activated.connect(self.set_stacked_widget)
+
+        self.sh_flop = QShortcut(QKeySequence(Qt.ShiftModifier + Qt.Key_X), _getMainMayaWindow())
+        self.sh_flop.setContext(Qt.ApplicationShortcut)
+        self.sh_flop.activated.connect(self.flop_vis)
+
+        self.sh_flip = QShortcut(QKeySequence(Qt.ShiftModifier + Qt.Key_Y), _getMainMayaWindow())
+        self.sh_flip.setContext(Qt.ApplicationShortcut)
+        self.sh_flip.activated.connect(self.flip_vis)
+
+        self.sh_crop = QShortcut(QKeySequence(Qt.Key_C), _getMainMayaWindow())
+        self.sh_crop.setContext(Qt.ApplicationShortcut)
+        self.sh_crop.activated.connect(self.crop_vis)
+
+
         # Track
         self.is_playing = False
         self.is_playing02 = False
@@ -360,7 +389,10 @@ class ReferenceEditor(QWidget):
         self.flip = False
         self.flop = False
         self.metadata = None
+        self.shortcut_list = [self.sh_crop, self.sh_flop, self.sh_flop, self.sh_set_framerate, self.sh_range_start, self.sh_range_end, self.sh_toggle_playback1, self.sh_toggle_playback2, self.sh_toggle_playback3, self.sh_toggle_playback4, self.sh_step_backwards, self.sh_step_forwards]
 
+
+        
     def printsilly(self):
         print("signal received")
 
@@ -485,6 +517,8 @@ class ReferenceEditor(QWidget):
             "match audio waveform to scene"            
         ]
         self.startAt_comboBox.addItems(startAt_list)
+
+        self.initShortcuts()
 
     def set_speed(self, fps):
         self.playbackSpeed_label.setText(str(fps) + " fps")
@@ -708,8 +742,9 @@ class ReferenceEditor(QWidget):
         exportfps = 'fps=' + str(input_fps / self.speed * self.numeric(self.framerate_comboBox.currentText()))
         vf_list.append(exportfps)
 
-        file_path = f"{self.my_ref_folder}{self.file_name_list[0]}.%04d." + self.format_comboBox.currentText().casefold()
+        file_path = f"{Path(self.my_ref_folder)}/{self.file_name_list[0]}.%04d." + self.format_comboBox.currentText().casefold()
         start_number = f"{self.numeric(self.startAt_comboBox.currentText())}"
+        print ("the ffmeg go here " + file_path)
         
         
         FFmpegCommands = [
@@ -732,7 +767,6 @@ class ReferenceEditor(QWidget):
 
             "-q:v","0",
 
-
             file_path,
         ]
 
@@ -751,10 +785,10 @@ class ReferenceEditor(QWidget):
     
     def ffmpeg_command(self):
         if self.validate():
-
+            
+            self.exitShortcuts()
             self.close()
             cameraDialog(self.file_name_list[0], self.ffmpeg_build_command()[1], self.ffmpeg_build_command()[2])
-
 
             folder_path = Path(self.my_ref_folder)
             folder_path.mkdir(parents=True, exist_ok=True)
@@ -765,7 +799,6 @@ class ReferenceEditor(QWidget):
             ffmpeg_thread = threading.Thread(target=self.run_ffmpeg)
             ffmpeg_thread.start()
 
-            
         else:
             self.validate()
 
@@ -780,7 +813,31 @@ class ReferenceEditor(QWidget):
         with open(f"{self.my_ref_folder}ffmpeg_log.txt", "w") as log:
             subprocess.run(self.ffmpeg_build_command()[0], stdout=log, stderr=log, startupinfo=startupinfo)
 
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.WindowActivate:
+            print("✅ Main Widget Activated")
+            self.initShortcuts()
+        elif event.type() == QEvent.WindowDeactivate:
+            print("❌ Main Widget Deactivated")
+            self.exitShortcuts()
+        return super(ReferenceEditor, self).eventFilter(obj, event)
+
+
+    def initShortcuts(self):
+        for shortcut in self.shortcut_list:
+            shortcut.setEnabled(1)
+    
+    def exitShortcuts(self):
+        for shortcut in self.shortcut_list:
+            shortcut.setEnabled(0)
+    
+
+
 def cameraDialog(name, file_path, start_number):
+    if cmds.window("CameraDialog", exists=True):
+        cmds.deleteUI("CameraDialog")
+        cmds.windowPref("CameraDialog", removeAll=True)
+
     cams = cmds.listCameras()
 
     cmds.window("CameraDialog", maximizeButton = False, minimizeButton = False)
@@ -802,6 +859,7 @@ def cameraDialog(name, file_path, start_number):
     cmds.showWindow()
 
 def nameDialog(name, file_path, start_number):
+
     choiceCam = cmds.optionMenu("cameraChoices", q=True, value=True)
     cmds.deleteUI("CameraDialog")
 
@@ -833,8 +891,8 @@ def createImgaePlane(choiceCam, im_name, file_path, start_number):
     cmds.setAttr(createdImagePlane[0]+".frameOffset", 0)
     #remove the colourspace attr for non etc, as it relys on the current occio.config and lut existing in the config
     #or do the colour config properly but idk
-    cmds.setAttr(createdImagePlane[0]+".colorSpace", "Output - sRGB", type="string")
-    cmds.setAttr(createdImagePlane[0]+".ignoreColorSpaceFileRules", 1)
+    #cmds.setAttr(createdImagePlane[0]+".colorSpace", "Output - sRGB", type="string")
+    #cmds.setAttr(createdImagePlane[0]+".ignoreColorSpaceFileRules", 1)
 
     #Extending Frame Cache to be long enough! Add an extra 100 frames for just in case!
     shot_length = cmds.playbackOptions(q=1, aet=1) - cmds.playbackOptions(q=1, ast=1)
@@ -854,16 +912,14 @@ def run(file):
     window.setWindowTitle("Reference Manager")
     window.load_video()
     window.show()
-    initShortcut()
 
 
 
 # To do:
 '''
 image sequence drop handling
-focus range slide and hotkeys(hotkeys might not be possible)
-clear cache/memory when deleting the images as it has trouble when you import the same video again
-hotkeys?
+clear cache/memory when deleting the images as it has trouble when you import the same video again # not happening at the moment, maybe adding the image number to the name fixed that? 
+path config
 
 
 -manager
