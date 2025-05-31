@@ -1,0 +1,81 @@
+// Cross-platform drag-and-drop installer for referenceEditor tool
+
+global proc installReferenceEditor() {
+    string $scriptsDir = `internalVar -usd`; // Universal user scripts directory
+    string $repoName = "referenceEditor";
+    string $mayaVersion = `about -version`;
+
+    // Construct modules directory path
+    string $baseMayaDir = `internalVar -userAppDir`; // This is e.g. C:/Users/you/Documents/maya/
+    string $modulesDir = $baseMayaDir + "modules/";
+
+    // Prompt user to select the extracted referenceManager-main folder
+    string $repoSource[] = `fileDialog2 -fm 3 -cap "Select the Extracted referenceManager-main Folder"`;
+    if (size($repoSource) == 0) {
+        warning "Installation cancelled. No folder selected.";
+        return;
+    }
+
+    string $sourcePath = $repoSource[0];
+    string $targetRepo = $modulesDir + $repoName + "/";
+    string $modFile = "referenceEditor.mod";
+    string $modPath = $modulesDir + $modFile;
+
+    // Make sure target folders exist
+    sysFile -makeDir $targetRepo;
+    sysFile -makeDir $modulesDir;
+
+    // Copy repo folder
+    string $sourceScriptsFolder = $sourcePath + "/scripts/";
+    string $targetScriptsFolder = $targetRepo + "scripts/";
+    
+    sysFile -makeDir $sourceScriptsFolder;
+    sysFile -makeDir $targetScriptsFolder;
+
+    string $files[] = {
+        "customWidgets.py",
+        "MLoadUi_2024.py",
+        "performCustomFileDropAction.mel",
+        "styleSheet.py"
+    };
+    
+
+    for ($h in $files) {
+        string $src = $sourceScriptsFolder + $h;
+        string $dst = $targetScriptsFolder + $h;
+    
+        if (`filetest -f $src`) {
+            string $pyCmd = "import shutil; shutil.copy(r'" + $src + "', r'" + $dst + "')";
+            python($pyCmd);
+            print("Copied via Python: " + $src + " -> " + $dst + "\n");
+        } else {
+            warning("Missing file: " + $src);
+        }
+    }
+
+
+    // Copy mod file
+    string $modSource = $sourcePath + "/referenceEditor.mod";
+    string $pyCmd1 = "import shutil; shutil.copy(r'" + $modSource + "', r'" + $modPath + "')";
+    python($pyCmd1);
+
+    // Copy userSetup.mel
+    string $userSetupSource = $sourcePath + "/userSetup.mel";
+    string $userSetupTarget = $scriptsDir + "userSetup.mel";
+    string $pyCmd2 = "import shutil; shutil.copy(r'" + $userSetupSource + "', r'" + $userSetupTarget + "')";
+    python($pyCmd2);
+
+    // Create cv2Bundle folder
+    string $cv2Path = $targetRepo + "scripts/cv2Bundle";
+    sysFile -makeDir $cv2Path;
+
+    // Install opencv-python using pip into cv2Bundle
+    python("import subprocess");
+    python("subprocess.run(['pip', 'install', '--target=" + $cv2Path + "', 'opencv-python'], check=True)");
+
+    confirmDialog -title "Success" -message "referenceEditor Installed Successfully! Please restart Maya" -button "OK";
+}
+
+installReferenceEditor();
+
+

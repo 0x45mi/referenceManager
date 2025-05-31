@@ -1,4 +1,4 @@
-+ ReferenceEditor 1.0 C:/Users/emimo/projects/maya/toolBuilding/referenceManager
++ ReferenceEditor 1.0 referenceEditor
 
 PYTHONPATH += .
 PYTHONPATH += cv2Bundle
