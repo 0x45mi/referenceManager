@@ -6,16 +6,21 @@ How to use:
 3.Follow the dialogs to create the image plane
 
 How to install-
-I will make this better at some point, but for now:
 1.Download the repo and extract files
-2.Move the referenceManager-main folder to you scripts folder, it should look like this: C:\Users\yourUser\Documents\maya\2024\scripts\referenceManager-main\scripts
-3.Take the referenceEditor.mod and put it in maya's module folder: C:\Users\emimo\Documents\maya\modules\referenceEditor.mod
-4.Open referenceEditor.mod and edit the module so it points to the right place: + ReferenceEditor 1.0 C:/Users/yourUser/Documents/maya/2024/scripts/referenceManager-main
-5.Take userSetup.mel and put in the scripts folder: C:\Users\yourUse\Documents\maya\2024\scripts\userSetup.mel
-6.In the scripts folder, make a folder called cv2Bundle. Then pip install cv2-python into that folder. 
-In a terminal, the command is: pip install target="C:/Users/yourUser/Documents/maya/2024/scripts/referenceManager-main/scripts/cv2Bundle" opencv-python
+2.Drop the dragAndDropInstall.mel in Maya.
+3.Pick the extracted file in the file dialog
 
-It should work now! Very simple I know, sorry about that I pinky promise I will make it better at some point, just not today.
+For the drop install to work, you will need pip configured correctly in your system PATH and internet access on your machine. 
+If the installation fails, you will have to do the last step manually (make cv2 available for the tool)-
+Download prebuilt cv2 and numpy wheels compatible with your system for python3.10 they are available here:
+https://pypi.org/project/opencv-python/#files
+http://pypi.org/project/numpy/#files
+you can extract the files with 7zip, then take all the extracted files to: C:\Users\yourUser\Documents\maya\modules\referenceEditor\scripts\cv2Bundle
+For example:
+C:\Users\yourUser\Documents\maya\modules\referenceEditor\scripts\cv2Bundle\cv2
+C:\Users\yourUser\Documents\maya\modules\referenceEditor\scripts\cv2Bundle\numpy
+etc.
+
 Restart maya and drop a video into the viewport
 
 I haven't tested too much yet, but I had a video that didn't show so I'll have to investigate(it did convert and show in maya though).
