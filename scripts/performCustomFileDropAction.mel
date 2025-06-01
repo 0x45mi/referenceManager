@@ -1,5 +1,5 @@
 global proc int performFileDropAction(string $theFile)
-{
+{   
     string $lowerFile = `python ("'" + $theFile + "'.lower()")`;
 
     string $imageFormats[] = {".jpg", ".jpeg", ".png", ".tiff", ".bmp", ".gif"};
