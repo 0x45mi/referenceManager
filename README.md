@@ -2,9 +2,9 @@
 The reference editor is a widget to review reference footage and add it to your maya scene as an image plane, faser. It's designed to look and behave similar to RV. It handles cutting the video, cropping and flipping, converting framerates and resolution and managing the files, so you don't have to! Options to export in .jpeg and .png and choose a start frame are available.
 
 ## How to use it <br/>
-1. Drop your video or image into maya's viewport <br/>
-2. Edit in the widget <br/>
-3. Follow the dialogs to create the image plane <br/>
+1. Drop your video or image into maya's viewport. <br/>
+2. Edit in the widget. <br/>
+3. Follow the dialogs to create the image plane. <br/>
 
 <img src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorDemo.gif?raw=true" data-canonical-src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorDemo.gif?raw=true" width="800" />
 
