@@ -30,7 +30,7 @@ The reference editor is a widget to review reference footage and add it to your 
 | | Play/pause toggle | L, Alt + V, Space |
 
 + Focus mode: scroll over the video to scroll through frames more slowly
-+ Interactive Slider handles
++ Interactive slider handles
 
 ## How to install
 1. Download the repository and extract files. <br/>
