@@ -6,7 +6,7 @@ The reference editor is a widget to review reference footage and add it to your 
 2. Edit in the widget <br/>
 3. Follow the dialogs to create the image plane <br/>
 
-<img src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorDemoUse.gif" data-canonical-src="[https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorInstall.gif](https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorDemoUse.gif" width="700" />
+<img src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorDemo.gif?raw=true" data-canonical-src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorDemo.gif?raw=true" width="700" />
 
 ## How to install
 1. Download the repository and extract files. <br/>
