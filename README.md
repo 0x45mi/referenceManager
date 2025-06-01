@@ -6,14 +6,38 @@ The reference editor is a widget to review reference footage and add it to your 
 2. Edit in the widget <br/>
 3. Follow the dialogs to create the image plane <br/>
 
-<img src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorDemo.gif?raw=true" data-canonical-src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorDemo.gif?raw=true" width="700" />
+<img src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorDemo.gif?raw=true" data-canonical-src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorDemo.gif?raw=true" width="800" />
+
+### Tour of the UI and shortcuts!
+<img src="https://github.com/0x45mi/referenceManager/blob/main/demo/UITour.jpg?raw=true" data-canonical-src="https://github.com/0x45mi/referenceManager/blob/main/demo/UITour.jpg?raw=true" width="800" />
+ <br/>
+
+
+| | Description | Shortcut|
+|--------|-------------|---------|
+| 1 | Frame step | ,  . |
+| 2 | Set range start and end | [ ] |
+| 3 | Flop | Shift + X |
+| 4 | Crop | C |
+| 5 | Flip | Shift + Y |
+| 6 | Retime | Shift + F |
+| 7 | Framerate at which to export the image sequence | |
+| 8 | Resolution at which to export the images | |
+| 9 | Export format | |
+| 10 | Start number of the image sequence | |
+| 11 | Reset | |
+| 12 | Pick reference folder | |
+| | Play/pause toggle | L, Alt + V, Space |
+
++ Focus mode: scroll over the video to scroll through frames more slowly
++ Interactive Slider handles
 
 ## How to install
 1. Download the repository and extract files. <br/>
 2. Drop dragAndDropInstall.py in Maya. <br/>
 3. Restart maya. <br/>
 <br/>
-<img src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorInstall.gif" data-canonical-src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorInstall.gif" width="700" />
+<img src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorInstall.gif" data-canonical-src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorInstall.gif" width="800" />
 
 For the drop install to work, you will need pip configured correctly in your system PATH and internet access on your machine. <br/>
 
