@@ -8,10 +8,9 @@ How to use:
 How to install-
 1.Download the repo and extract files
 2.Drop the dragAndDropInstall.mel in Maya.
-3.Pick the extracted file in the file dialog
 
 For the drop install to work, you will need pip configured correctly in your system PATH and internet access on your machine. 
-If the installation fails, you will have to do the last step manually (make cv2 available for the tool)-
+If the installation fails, you will have to do the last step manually (make cv2 available for the tool), or install pip:)-
 Download prebuilt cv2 and numpy wheels compatible with your system for python3.10 they are available here:
 https://pypi.org/project/opencv-python/#files
 http://pypi.org/project/numpy/#files
