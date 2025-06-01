@@ -666,6 +666,9 @@ class ReferenceEditor(QWidget):
             with open (config_file, "w") as f:
                 f.write(ref_file)
             self.set_my_ref_folder(config_file)
+            return True
+        else:
+            return False
 
 
     def set_my_ref_folder(self, config_file):
@@ -684,13 +687,11 @@ class ReferenceEditor(QWidget):
                     if target_path.exists():
                         return True
                     else:
-                        self.path_config()
-                        return self.validate_my_ref_folder()
+                        return self.path_config()
             else: 
                 return False
         except:
-            self.path_config()
-            return self.validate_my_ref_folder()
+            return self.path_config()
 
                 
 
