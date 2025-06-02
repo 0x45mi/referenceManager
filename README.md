@@ -31,6 +31,7 @@ The reference editor is a widget to review reference footage and add it to your 
 
 + Focus mode: scroll over the video to scroll through frames more slowly
 + Interactive slider handles
++ If you drop an image in the viewport it will make the image plane for the sequence. Assumes editing has been done elsewhere.
 
 ## How to install
 1. Download the repository and extract files. <br/>
