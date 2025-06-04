@@ -524,6 +524,7 @@ class CropLabel(QtWidgets.QLabel):
     #signals
     sig_forwards = QtCore.Signal(bool) 
     sig_backwards = QtCore.Signal(bool) 
+    slider_active = QtCore.Signal(bool)  
 
     def __init__(self, parent=None):
         super().__init__(parent) 
@@ -750,12 +751,16 @@ class CropLabel(QtWidgets.QLabel):
         return f"crop={width}:{height}:{self.crop_points['topLeft'].x()}:{self.crop_points['topLeft'].y()}"
         
     def mousePressEvent(self, ev):
-        self.active = self.hover
+        self.process_pointer_press(ev)
         return super().mousePressEvent(ev)
     
     def mouseMoveEvent(self, ev):
         self.process_pointer_event(ev)
         return super().mouseMoveEvent(ev)
+    
+    def mouseReleaseEvent(self, ev):
+        self.process_pointer_release(ev)
+        return super().mouseReleaseEvent(ev)
     
     def process_pointer_event(self, ev):
         mouse = QtCore.QPoint(ev.pos().x(), ev.pos().y())
@@ -802,8 +807,15 @@ class CropLabel(QtWidgets.QLabel):
         self.debounce_ready = True
 
     def process_pointer_press(self, ev):
+        self.slider_active.emit(True)
         self.active = self.hover
         self.last_mousex_position = ev.pos().x()
+    
+    def process_pointer_release(self, ev):
+        self.active = self.hover
+        self.slider_active.emit(False)
+        
+
         
     
     def tabletEvent(self, event: QtGui.QTabletEvent):
@@ -818,7 +830,7 @@ class CropLabel(QtWidgets.QLabel):
             event.accept()
 
         elif event_type == QtCore.QEvent.TabletRelease:
-            self.active = self.hover
+            self.process_pointer_release(event)
             event.accept()
 
         else:

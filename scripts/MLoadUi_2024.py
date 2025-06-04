@@ -356,7 +356,9 @@ class ReferenceEditor(QWidget):
         self.confirm_pushbutton.clicked.connect(self.ffmpeg_command)
         self.video_label.sig_forwards.connect(self.step_forwards)
         self.video_label.sig_backwards.connect(self.step_backwards)
+        self.video_label.slider_active.connect(self.toggle_02)
         self.info_pushbutton.clicked.connect(self.path_config)
+
 
 
         # Track
@@ -371,8 +373,8 @@ class ReferenceEditor(QWidget):
         
 
         
-    def printsilly(self):
-        print("signal received") # first signal connect
+    def printsilly(self, value):
+        print(value) # first signal connect
 
     def get_metadata(self, video_path):
         cmd = [
