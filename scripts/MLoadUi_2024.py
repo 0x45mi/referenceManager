@@ -453,7 +453,6 @@ class ReferenceEditor(QWidget):
         self.slider.update()
 
     def load_image(self):
-        self.exitShortcuts()
         self.close()
         try:
             names = self.file_name_list[0].rsplit(".", 1)
@@ -764,7 +763,7 @@ class ReferenceEditor(QWidget):
 
         file_path = f"{Path(self.my_ref_folder)}/{self.file_nice_name}.%04d." + self.format_comboBox.currentText().casefold()
         start_number = f"{self.numeric(self.startAt_comboBox.currentText())}"
-        print ("the ffmeg go here " + file_path)
+        #print ("the ffmeg go here " + file_path)
         
         
         FFmpegCommands = [
@@ -806,7 +805,6 @@ class ReferenceEditor(QWidget):
     def ffmpeg_command(self):
         if self.validate() and self.validate_my_ref_folder():
             
-            self.exitShortcuts()
             self.close()
             cameraDialog(self.file_nice_name, self.ffmpeg_build_command()[1], self.ffmpeg_build_command()[2])
 
@@ -850,6 +848,12 @@ class ReferenceEditor(QWidget):
     def exitShortcuts(self):
         for shortcut in self.shortcut_list:
             shortcut.setEnabled(0)
+
+    def closeEvent(self, event):
+        flush_cv2()
+        self.exitShortcuts()
+        event.accept()
+
 
 def cameraDialog(name, file_path, start_number):
     if cmds.window("CameraDialog", exists=True):
@@ -941,7 +945,39 @@ def run(file, media_type):
         window.load_video()
         window.show()
     
+def flush_cv2():
+    target_base = f"{script_directory}/cv2Bundle/cv2"
 
+    # 1. Unload any loaded modules from that path
+    print("🔍 Checking loaded modules to unload...")
+    to_delete = []
+    for name, module in sys.modules.items():
+        try:
+            module_file = getattr(module, '__file__', '')
+            if module_file and target_base in os.path.normpath(module_file):
+                to_delete.append(name)
+        except Exception:
+            continue
+
+    for name in to_delete:
+        del sys.modules[name]
+        print(f"🗑️ Unloaded module: {name}")
+
+    # 2. Clean sys.path
+    print("\n🧼 Cleaning sys.path...")
+    original_paths = sys.path[:]
+    sys.path = [p for p in sys.path if target_base not in os.path.normpath(p)]
+    for removed in set(original_paths) - set(sys.path):
+        print(f"❌ Removed from sys.path: {removed}")
+
+    # 3. Clean environment variables (e.g., LD_LIBRARY_PATH)
+    print("\n🌐 Cleaning environment variables...")
+    for key, val in os.environ.items():
+        if isinstance(val, str) and target_base in val:
+            parts = val.split(":")
+            cleaned = [p for p in parts if target_base not in os.path.normpath(p)]
+            os.environ[key] = ":".join(cleaned)
+            print(f"🔧 Cleaned {key}")
 
 
 # To do:
