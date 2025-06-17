@@ -34,11 +34,12 @@ playbackStartTime = oma.MAnimControl.minTime().value()
 script_directory = (os.path.dirname(os.path.abspath( 
     inspect.getfile(inspect.currentframe()))) ).replace(os.sep, '/')
 
-def import_scoped_cv2():
-  
-    cv2_path = f"{script_directory}/cv2Bundle"
 
-    sys.path.insert(0, cv2_path)
+def import_scoped_cv2():
+    cv2_path = f"{script_directory}/cv2Bundle/cv2"
+    
+    if cv2_path not in sys.path:
+        sys.path.insert(0, cv2_path)
 
     try:
         import cv2
@@ -47,6 +48,7 @@ def import_scoped_cv2():
         print(f"❌ Failed to import cv2 from {cv2_path}: {e}")
         return None
     finally:
+        # Clean up so it doesn't stay in global path
         if cv2_path in sys.path:
             sys.path.remove(cv2_path)
 
@@ -850,7 +852,7 @@ class ReferenceEditor(QWidget):
             shortcut.setEnabled(0)
 
     def closeEvent(self, event):
-        flush_cv2()
+        #flush_cv2()
         self.exitShortcuts()
         event.accept()
 
