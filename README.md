@@ -42,6 +42,7 @@ The reference editor is a widget to review reference footage and add it to your 
 
 For the drop install to work, you will need pip configured correctly in your system PATH and internet access on your machine. <br/>
 
+### Manual installation
 If the installation fails, you will have to do the last step manually (make cv2 available for the tool), or install pip. <br/>
 Download prebuilt cv2 and numpy wheels compatible with your system for python3.10 they are available here: <br/>
 https://pypi.org/project/opencv-python/#files <br/>
@@ -55,3 +56,7 @@ C:\Users\yourUser\Documents\maya\modules\referenceEditor\scripts\cv2Bundle\cv2 <
 C:\Users\yourUser\Documents\maya\modules\referenceEditor\scripts\cv2Bundle\numpy 
 <br/>
 Restart maya and drop a video into the viewport to check it's working. <br/>
+
+### Uninstall
+Delete "referenceEditor.mod" and "referenceEditor" folder from your Maya madules folder. "C:\Users\yourUser\Documents\maya\modules" <br/>
+Delete "userSetup.mel" from your maya version scripts folder. "C:\Users\yourUser\Documents\maya\2022\scripts" <br/>
