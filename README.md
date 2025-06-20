@@ -33,6 +33,11 @@ The reference editor is a widget to review reference footage and add it to your 
 + Interactive slider handles
 + If you drop an image in the viewport it will make the image plane for the sequence. Assumes editing has been done elsewhere.
 
+## Version compatibility
+- Python 3.10 and pyside2 (Maya 2024)  <br/>
+Tested on Maya 2024 Windows  <br/>
+Worked on Maya 2022 Linux  <br/>
+
 ## How to install
 1. Download the repository and extract files. <br/>
 2. Drop dragAndDropInstall.py in Maya. <br/>
@@ -59,4 +64,5 @@ Restart maya and drop a video into the viewport to check it's working. <br/>
 
 ### Uninstall
 Delete "referenceEditor.mod" and "referenceEditor" folder from your Maya madules folder. "C:\Users\yourUser\Documents\maya\modules" <br/>
-Delete "userSetup.mel" from your maya version scripts folder. "C:\Users\yourUser\Documents\maya\2022\scripts" <br/>
+Delete "userSetup.mel" from your maya version scripts folder. "C:\Users\yourUser\Documents\maya\2024\scripts" <br/>
+
