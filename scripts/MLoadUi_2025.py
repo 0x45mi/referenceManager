@@ -1,11 +1,11 @@
 import os
 import sys
 import subprocess
-from PySide2.QtWidgets import QApplication, QMessageBox, QWidget,  QPushButton, QShortcut, QVBoxLayout, QLabel, QFileDialog, QHBoxLayout, QSpacerItem, QSizePolicy, QFrame, QLineEdit, QGridLayout, QComboBox, QStackedLayout, QLayout
-from PySide2.QtCore import Qt, QTimer, QSize, QEvent, QCoreApplication
-from PySide2.QtGui import QImage, QPixmap, QFont, QIntValidator, QTransform, QKeyEvent, QKeySequence
+from PySide6.QtWidgets import QApplication, QMessageBox, QWidget,  QPushButton, QVBoxLayout, QLabel, QFileDialog, QHBoxLayout, QSpacerItem, QSizePolicy, QFrame, QLineEdit, QGridLayout, QComboBox, QStackedLayout, QLayout
+from PySide6.QtCore import Qt, QTimer, QSize, QEvent, QCoreApplication
+from PySide6.QtGui import QImage, QPixmap, QFont, QIntValidator, QTransform, QKeyEvent, QKeySequence, QShortcut
 import imp
-import customWidgets as cw
+import customWidgets_2025 as cw
 imp.reload(cw)
 import styleSheet
 import ntpath
@@ -19,7 +19,7 @@ import maya.OpenMayaAnim as oma
 from maya import OpenMayaUI as omui
 import importlib.util
 import inspect 
-from shiboken2 import wrapInstance
+from shiboken6 import wrapInstance
 
 
 def _getMainMayaWindow():
@@ -328,13 +328,13 @@ class ReferenceEditor(QWidget):
         mk_shortcut("self.sh_range_end", Qt.Key_BracketRight, self.range_end)
         mk_shortcut("self.sh_toggle_playback1", Qt.Key_L, self.toggle_playback)
         mk_shortcut("self.sh_toggle_playback2", Qt.Key_Space, self.toggle_playback)
-        mk_shortcut("self.sh_toggle_playback3", Qt.AltModifier + Qt.Key_V, self.toggle_playback)
-        mk_shortcut("self.sh_toggle_playback4", Qt.MetaModifier + Qt.Key_V, self.toggle_playback)
+        mk_shortcut("self.sh_toggle_playback3", Qt.AltModifier | Qt.Key_V, self.toggle_playback)
+        mk_shortcut("self.sh_toggle_playback4", Qt.MetaModifier | Qt.Key_V, self.toggle_playback)
         mk_shortcut("self.sh_step_backwards", Qt.Key_Comma, self.step_backwards)
         mk_shortcut("self.sh_step_forwards", Qt.Key_Period, self.step_forwards)
-        mk_shortcut("self.sh_set_framerate", Qt.ShiftModifier + Qt.Key_F, self.set_stacked_widget)
-        mk_shortcut("self.sh_flop", Qt.ShiftModifier + Qt.Key_X, self.flop_vis)
-        mk_shortcut("self.sh_flip", Qt.ShiftModifier + Qt.Key_Y, self.flip_vis)
+        mk_shortcut("self.sh_set_framerate", Qt.ShiftModifier | Qt.Key_F, self.set_stacked_widget)
+        mk_shortcut("self.sh_flop", Qt.ShiftModifier | Qt.Key_X, self.flop_vis)
+        mk_shortcut("self.sh_flip", Qt.ShiftModifier | Qt.Key_Y, self.flip_vis)
         mk_shortcut("self.sh_crop", Qt.Key_C, self.crop_vis)
 
 
@@ -604,6 +604,9 @@ class ReferenceEditor(QWidget):
         self.is_playing = not self.is_playing
         self.is_playing02 = not self.is_playing02
 
+    #is_active returns if the cursor is pressed, True for press, false for release. 
+    #on false let's return the frame, 
+    # if it's in the range we can continue playing and if not then it can be paused and keep that frame
     def toggle_02(self, is_active):
         if self.is_playing02 and is_active:
             self.timer.stop()
@@ -623,7 +626,7 @@ class ReferenceEditor(QWidget):
             #self.update()
         elif not self.is_playing02:
             return
-            
+           
         
     def update_frame(self):
         """Updates the video frame on timer event."""

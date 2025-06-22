@@ -1,0 +1,40 @@
+global proc int performFileDropAction(string $theFile)
+{   
+    string $lowerFile = `python ("'" + $theFile + "'.lower()")`;
+
+    string $imageFormats[] = {".jpg", ".jpeg", ".png", ".tiff", ".bmp", ".gif"};
+    string $videoFormats[] = {".mp4", ".mov", ".avi", ".mkv"};
+
+    int $isImage = 0;
+    int $isVideo = 0;
+
+    for ($ext in $imageFormats)
+    {
+        if (`gmatch $lowerFile ("*" + $ext)`)
+        {
+            $isImage = 1;
+            break;
+        }
+    }
+
+    for ($ext in $videoFormats)
+    {
+        if (`gmatch $lowerFile ("*" + $ext)`)
+        {
+            $isVideo = 1;
+            break;
+        }
+    }
+
+    if ($isImage || $isVideo)
+    {
+        int $typeFlag = $isImage ? 0 : 1;
+
+        python("import importlib; import MLoadUi_2025; importlib.reload(MLoadUi_2025); "
+               + "MLoadUi_2025.run(r'" + $theFile + "', " + $typeFlag + ")");
+        return 1;
+    }
+
+    return performFileSilentImportAction($theFile);
+}
+
