@@ -33,7 +33,7 @@ class AutoLineEdit(QLineEdit):
 class VideoRangeSlider(QtWidgets.QAbstractSlider):
 
     in_out_valueChanged = QtCore.Signal(int)  
-    slider_active = QtCore.Signal(bool)  
+    slider_active = QtCore.Signal(bool)
 
     def __init__(self, orientation=QtCore.Qt.Horizontal, parent=None):
         super().__init__(parent)
@@ -60,10 +60,11 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
         self.active_handle = None
         self.last_position = 0 #to avoid tablet cursor updating too much
 
-        #debounce timer
+        # debounce timer
         self.debounce_timer = QtCore.QTimer(self)
         self.debounce_timer.setSingleShot(True)  # Only fire once after inactivity
         self.debounce_timer.timeout.connect(self.emit_values)
+    
 
 
 # Paint        
@@ -80,6 +81,7 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
         painter.setBrush(QtGui.QColor(67, 67, 67)) 
         painter.setPen(QtGui.Qt.NoPen)
         painter.drawRect(groove)
+
 
         # draw range highlight
         left = self.value_to_pixel(self.variables.get("_inPoint"))
@@ -166,6 +168,7 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
                     QtCore.QPoint(x_pos +  13, self.height() // 2 + 6)
                     ]
                 painter.drawConvexPolygon(triangle)
+
 
 
 # Events

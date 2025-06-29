@@ -20,6 +20,7 @@ from maya import OpenMayaUI as omui
 import importlib.util
 import inspect 
 from shiboken2 import wrapInstance
+from collections import OrderedDict
 
 
 def _getMainMayaWindow():
@@ -56,6 +57,7 @@ def import_scoped_cv2():
             sys.path.remove(cv2_path)
 
 class ReferenceEditor(QWidget):
+
     def __init__(self, file, parent=None):
         super(ReferenceEditor, self).__init__(parent)
         self.installEventFilter(self)
@@ -69,6 +71,10 @@ class ReferenceEditor(QWidget):
         self.cap = None
         self.speed = 1
 
+        self.precache_timer = QTimer()
+        self.precache_timer.setInterval(0)  # Idle-like
+        self.precache_timer.timeout.connect(self.precache)
+        self.precache_timer.start()
 
         self.input_path = file
         self.input_type = 1
@@ -368,10 +374,10 @@ class ReferenceEditor(QWidget):
         self.info_pushbutton.clicked.connect(self.path_config)
 
 
-
         # Track
         self.is_playing = False
         self.is_playing02 = False
+        self.active = False
         self.start_time = 0
         self.end_time = 0
         self.crop = False
@@ -379,10 +385,11 @@ class ReferenceEditor(QWidget):
         self.flop = False
         self.metadata = None
 
-        self.frame_cache = {}
-        self.cache_size = 100
-
-        
+        self.frame_cache = OrderedDict()
+        self.cache_size = 1000
+        self.lookahead =  600
+        self.lookbehind = 10
+    
 
         
     def printsilly(self, value):
@@ -485,9 +492,7 @@ class ReferenceEditor(QWidget):
         self.FC_update()
         fps = self.metadata.get("Framerate")
         self.set_speed(fps)
-
         self.video_label.set_crop_to_image(self.metadata.get("Width"), self.metadata.get("Height"))
-
         self.sourceFramerate_label.setText(str(fps) + " fps")
         self.sourceResolution_label.setText(self.metadata.get("Resolution"))
         self.sourceFormat_label.setText(self.file_name_list[1])
@@ -541,6 +546,32 @@ class ReferenceEditor(QWidget):
 
         self.video_label.setPixmap(scaled_pixmap)
     
+    def _enforce_cache_size(self):
+        while len(self.frame_cache) > self.cache_size:
+            # Pop oldest
+            idx, _ = self.frame_cache.popitem(last=False)
+            #print(f"[EVICT] Frame {idx}")
+
+    def precache(self):
+        if self.is_playing or self.is_playing02 or self.active:
+            return
+
+        frame_idx = self.slider.variables.get("_frame")
+        for i in range(frame_idx + 1, frame_idx + self.lookahead):
+            if i < 0 or i > self.slider.maximum():
+                continue
+            if i not in self.frame_cache:
+                current_pos = int(self.cap.get(self.cv2.CAP_PROP_POS_FRAMES))
+                if current_pos != i:
+                    self.cap.set(self.cv2.CAP_PROP_POS_FRAMES, i)
+                ret, frame = self.cap.read()
+                if ret:
+                    rgb = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
+                    self.frame_cache[i] = rgb
+                    self._enforce_cache_size()
+                break  # Do only one at a time
+
+
     def get_frame(self, frame_idx):
         if frame_idx in self.frame_cache:
             #print(f"[CACHE HIT] {frame_idx}")
@@ -554,49 +585,51 @@ class ReferenceEditor(QWidget):
         if ret:
             rgb = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
             self.frame_cache[frame_idx] = rgb
-
             # Keep cache size under limit
-            if len(self.frame_cache) > self.cache_size:
-                self.frame_cache.pop(next(iter(self.frame_cache)))
+            self._enforce_cache_size()
             return rgb
 
         return None
-
+    
     def show_frame(self):
-        """Displays the current frame of the video."""
         if self.input_type == 0:
             self.load_scale(QPixmap(self.input_path))
             return
 
         if self.is_playing:
-            # When playing → just read next frame in sequence
-            ret, frame = self.cap.read()
-            if ret:
-                frame_idx = int(self.cap.get(self.cv2.CAP_PROP_POS_FRAMES)) - 1  # read() advances already
-                if frame_idx < self.slider.variables["_outPoint"] - 1:
-                    #print(f"[PLAYING] Reading new frame {frame_idx}")
+            expected_frame = self.slider.variables.get("_frame")
+            if expected_frame < self.slider.variables["_outPoint"]:
 
-                    rgb = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
-                    self.frame_cache[frame_idx] = rgb
+                # Try cache first:
+                if expected_frame in self.frame_cache:
+                    rgb = self.frame_cache[expected_frame]
+                    #print(f"[PLAYING] CACHE HIT {expected_frame}")
                 else:
-                    self.toggle_playback()
-                    return
-
-                if len(self.frame_cache) > self.cache_size:
-                    self.frame_cache.pop(next(iter(self.frame_cache)))
-
+                    # No cache? Just read sequentially.
+                    ret, frame = self.cap.read()
+                    if ret:
+                        frame_idx = int(self.cap.get(self.cv2.CAP_PROP_POS_FRAMES)) - 1
+                        if frame_idx < self.slider.variables["_outPoint"]:
+                            rgb = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
+                            self.frame_cache[frame_idx] = rgb
+                            self._enforce_cache_size()
+                        else:
+                            self.toggle_playback()
+                            return
+                    else:
+                        self.toggle_playback()
+                        return
             else:
                 self.toggle_playback()
                 return
 
         else:
-            # If paused → show frame at current pos from cache
-            frame_idx = int(self.cap.get(self.cv2.CAP_PROP_POS_FRAMES))
-            frame = self.get_frame(frame_idx)
-            if frame is None:
-                print(f"[PAUSED] Frame {frame_idx} could not be loaded")
+            # Not playing → must seek accurately
+            frame_idx = self.slider.variables.get("_frame")
+            rgb = self.get_frame(frame_idx)
+            if rgb is None:
+                #print(f"[PAUSED] Frame {frame_idx} could not be loaded")
                 return
-            rgb = frame
 
         # Render
         height, width, channel = rgb.shape
@@ -604,6 +637,19 @@ class ReferenceEditor(QWidget):
         q_img = QImage(rgb.data, width, height, bytes_per_line, QImage.Format_RGB888)
         self.load_scale(QPixmap.fromImage(q_img))
 
+
+    def update_frame(self):
+        """Updates the video frame on timer event."""
+        self.show_frame()
+        self.slider.variables["_frame"] += 1
+        #self.slider.variables["_frame"] = int(self.cap.get(self.cv2.CAP_PROP_POS_FRAMES))
+        self.slider.update()
+
+    def set_frame(self, position):
+        """Sets the video to a specific frame based on slider."""
+        self.cap.set(self.cv2.CAP_PROP_POS_FRAMES, position)
+        self.show_frame()
+        self.update()
 
     def set_stacked_widget(self):
         if self.stacked_layout.currentWidget() == self.slider_layout:
@@ -633,11 +679,11 @@ class ReferenceEditor(QWidget):
         if self.slider.variables["_frame"] < self.slider.maximum():
             self.slider.setValue(self.slider.variables.get("_frame") + 1)
             
-
     def toggle_playback(self):
         """Play/Pause the video."""
         if self.is_playing: #Stop
             self.timer.stop()
+            self.precache_timer.start()
             self.slider.valueChanged.connect(self.set_frame)
             self.update()
             
@@ -646,6 +692,7 @@ class ReferenceEditor(QWidget):
                 self.slider.setValue(self.slider.variables.get("_inPoint"))
             self.slider.valueChanged.disconnect(self.set_frame)
             self.timer.start(1000/self.speed)
+            self.precache_timer.stop()
             self.update()
         self.is_playing = not self.is_playing
         self.is_playing02 = not self.is_playing02
@@ -655,10 +702,8 @@ class ReferenceEditor(QWidget):
             self.timer.stop()
             self.slider.valueChanged.connect(self.set_frame)
             self.is_playing = not self.is_playing
-            #self.update()
         elif self.is_playing02 and not is_active:
             if self.slider.variables["_frame"] >= self.slider.variables["_outPoint"] - 1 or self.slider.variables["_frame"] < self.slider.variables["_inPoint"]:
-                #self.slider.setValue(self.slider.variables.get("_inPoint"))
                 self.is_playing = False
                 self.is_playing02 = False
                 return
@@ -666,21 +711,13 @@ class ReferenceEditor(QWidget):
             self.slider.valueChanged.disconnect(self.set_frame)
             self.timer.start(1000/self.speed)
             self.is_playing = not self.is_playing
-            #self.update()
         elif not self.is_playing02:
+            self.active = is_active
+            if is_active:
+                self.precache_timer.stop()
+            else:
+                self.precache_timer.start()
             return
-            
-        
-    def update_frame(self):
-        """Updates the video frame on timer event."""
-        self.show_frame()
-        self.slider.variables["_frame"] = int(self.cap.get(self.cv2.CAP_PROP_POS_FRAMES))
-        self.slider.update()
-
-    def set_frame(self, position):
-        """Sets the video to a specific frame based on slider."""
-        self.cap.set(self.cv2.CAP_PROP_POS_FRAMES, position)
-        self.show_frame()
 
     def range_start(self):
         if self.slider.variables["_frame"] != self.slider.maximum():
@@ -905,6 +942,7 @@ class ReferenceEditor(QWidget):
 
     def closeEvent(self, event):
         #flush_cv2()
+        self.precache_timer.stop()
         self.exitShortcuts()
         self.cap.release()
         event.accept()
