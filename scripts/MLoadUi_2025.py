@@ -36,7 +36,10 @@ script_directory = (os.path.dirname(os.path.abspath(
 
 
 def import_scoped_cv2():
-    cv2_path = f"{script_directory}/cv2Bundle/cv2"
+    if os.name == 'nt':
+        cv2_path = f"{script_directory}/cv2Bundle"
+    else:
+        cv2_path = f"{script_directory}/cv2Bundle/cv2"
     
     if cv2_path not in sys.path:
         sys.path.insert(0, cv2_path)
@@ -60,6 +63,7 @@ class ReferenceEditor(QWidget):
         self.cv2 = import_scoped_cv2()
         if not self.cv2:
             QMessageBox.warning(self, "Import Error", "OpenCV/NumPy not available. Some features will be disabled.")
+        self.cv2.setUseOptimized(True)
 
         self.timer = QTimer()
         self.cap = None
@@ -331,7 +335,9 @@ class ReferenceEditor(QWidget):
         mk_shortcut("self.sh_toggle_playback3", Qt.AltModifier | Qt.Key_V, self.toggle_playback)
         mk_shortcut("self.sh_toggle_playback4", Qt.MetaModifier | Qt.Key_V, self.toggle_playback)
         mk_shortcut("self.sh_step_backwards", Qt.Key_Comma, self.step_backwards)
+        mk_shortcut("self.sh_step_backwards2", Qt.Key_Left, self.step_backwards)
         mk_shortcut("self.sh_step_forwards", Qt.Key_Period, self.step_forwards)
+        mk_shortcut("self.sh_step_forwards2", Qt.Key_Right, self.step_forwards)
         mk_shortcut("self.sh_set_framerate", Qt.ShiftModifier | Qt.Key_F, self.set_stacked_widget)
         mk_shortcut("self.sh_flop", Qt.ShiftModifier | Qt.Key_X, self.flop_vis)
         mk_shortcut("self.sh_flip", Qt.ShiftModifier | Qt.Key_Y, self.flip_vis)
@@ -531,8 +537,73 @@ class ReferenceEditor(QWidget):
 
         self.video_label.setPixmap(scaled_pixmap)
 
+    def get_frame(self, frame_idx):
+        if frame_idx in self.frame_cache:
+            #print(f"[CACHE HIT] {frame_idx}")
+            return self.frame_cache[frame_idx]
+
+        #print(f"[CACHE MISS] {frame_idx}")
+
+        # Seek only if needed:
+        self.cap.set(self.cv2.CAP_PROP_POS_FRAMES, frame_idx)
+        ret, frame = self.cap.read()
+        if ret:
+            rgb = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
+            self.frame_cache[frame_idx] = rgb
+
+            # Keep cache size under limit
+            if len(self.frame_cache) > self.cache_size:
+                self.frame_cache.pop(next(iter(self.frame_cache)))
+            return rgb
+
+        return None
+
     def show_frame(self):
         """Displays the current frame of the video."""
+        if self.input_type == 0:
+            self.load_scale(QPixmap(self.input_path))
+            return
+
+        if self.is_playing:
+            # When playing → just read next frame in sequence
+            ret, frame = self.cap.read()
+            if ret:
+                frame_idx = int(self.cap.get(self.cv2.CAP_PROP_POS_FRAMES)) - 1  # read() advances already
+                if frame_idx < self.slider.variables["_outPoint"] - 1:
+                    #print(f"[PLAYING] Reading new frame {frame_idx}")
+
+                    rgb = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
+                    self.frame_cache[frame_idx] = rgb
+                else:
+                    self.toggle_playback()
+                    return
+
+                if len(self.frame_cache) > self.cache_size:
+                    self.frame_cache.pop(next(iter(self.frame_cache)))
+
+            else:
+                self.toggle_playback()
+                return
+
+        else:
+            # If paused → show frame at current pos from cache
+            frame_idx = int(self.cap.get(self.cv2.CAP_PROP_POS_FRAMES))
+            frame = self.get_frame(frame_idx)
+            if frame is None:
+                print(f"[PAUSED] Frame {frame_idx} could not be loaded")
+                return
+            rgb = frame
+
+        # Render
+        height, width, channel = rgb.shape
+        bytes_per_line = 3 * width
+        q_img = QImage(rgb.data, width, height, bytes_per_line, QImage.Format_RGB888)
+        self.load_scale(QPixmap.fromImage(q_img))
+
+
+
+    '''def show_frame(self):
+        #Displays the current frame of the video.
         if self.input_type == 0:
             self.load_scale(QPixmap(self.input_path))
 
@@ -557,7 +628,7 @@ class ReferenceEditor(QWidget):
                     self.toggle_playback()
 
             elif not ret and self.is_playing:
-                self.toggle_playback()
+                self.toggle_playback()'''
 
     def set_stacked_widget(self):
         if self.stacked_layout.currentWidget() == self.slider_layout:
@@ -863,6 +934,7 @@ class ReferenceEditor(QWidget):
     def closeEvent(self, event):
         #flush_cv2()
         self.exitShortcuts()
+        self.cap.release()
         event.accept()
 
 
