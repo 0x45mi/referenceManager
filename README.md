@@ -15,7 +15,7 @@ The reference editor is a widget to review reference footage and add it to your 
 
 | | Description | Shortcut|
 |--------|-------------|---------|
-| 1 | Frame step | ,  . |
+| 1 | Frame step | ,, Arrow Left, ., Arrow Right|
 | 2 | Set range start and end | [ ] |
 | 3 | Flop | Shift + X |
 | 4 | Crop | C |
