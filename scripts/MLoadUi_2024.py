@@ -372,6 +372,7 @@ class ReferenceEditor(QWidget):
         self.video_label.sig_backwards.connect(self.step_backwards)
         self.video_label.slider_active.connect(self.toggle_02)
         self.info_pushbutton.clicked.connect(self.path_config)
+        
 
 
         # Track
@@ -385,10 +386,16 @@ class ReferenceEditor(QWidget):
         self.flop = False
         self.metadata = None
 
-        self.frame_cache = OrderedDict()
+        #self.frame_cache = OrderedDict()
+        cache_size = 1000
+        look_ahead =  600
+        look_behind = 10
+        self.frame_cache = cw.CacheDict(cache_size, look_ahead, look_behind)
         self.cache_size = 1000
         self.lookahead =  600
         self.lookbehind = 10
+
+        self.frame_cache.cache_changed.connect(self.printsilly)
     
 
         
@@ -1078,6 +1085,9 @@ def flush_cv2():
 -manager
 -context
 -make the editor available from the context and manager
+
+-cache toggle
+-cleaner cache management
 
 '''
 

@@ -206,7 +206,6 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
         self.active_handle = None
         self.slider_active.emit(False)
         
-
     def mousePressEvent(self, event):
         self.process_pointer_press(event)
         event.accept()
@@ -282,7 +281,6 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
         return int(round(self.minimum() + (pixel - 13) * (self.maximum() - self.minimum()) / (self.width() - 26), 0))
 
     #def relative_value_to_pixel(self, value):
-
 
 class FilledWidget(QtWidgets.QWidget):
     def __init__(self, height, col, parent=None):
@@ -844,4 +842,53 @@ class CropLabel(QtWidgets.QLabel):
     def resizeEvent(self, event):
         self.update()
         return super().resizeEvent(event)
-    
+
+class CacheDict(QtCore.QObject):
+    cache_changed = QtCore.Signal(int)
+
+    def __init__(self, cache_size, look_ahead, look_behind, *args, **kwargs):
+        super().__init__()
+        self._data = dict(*args, **kwargs)
+        self.cache_size = cache_size
+        self.look_ahead = look_ahead
+        self.look_behind = look_behind
+
+    def __setitem__(self, key, value):
+        if len(self._data) >= self.cache_size:
+            self.evict()
+        self._data[key] = value
+        self.emit_signal(key)
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def __delitem__(self, key):
+        del self._data[key]
+        self.emit_signal(key)
+
+    def __contains__(self, key):
+        return key in self._data
+
+    def __len__(self):
+        return len(self._data)
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def items(self):
+        return self._data.items()
+
+    def keys(self):
+        return self._data.keys()
+
+    def values(self):
+        return self._data.values()
+
+    def evict(self):
+        # Evict *some* key: first inserted in CPython ≥3.7, arbitrary in other interpreters
+        oldest_key = next(iter(self._data))
+        del self._data[oldest_key]
+
+    def emit_signal(self, key):
+        self.cache_changed.emit(key)
+
