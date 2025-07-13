@@ -21,7 +21,7 @@ import importlib.util
 import inspect 
 from shiboken6 import wrapInstance
 from collections import OrderedDict
- 
+
 
 def _getMainMayaWindow():
     mayaMainWindowPtr = omui.MQtUtil.mainWindow()
@@ -57,6 +57,7 @@ def import_scoped_cv2():
             sys.path.remove(cv2_path)
 
 class ReferenceEditor(QWidget):
+
     def __init__(self, file, parent=None):
         super(ReferenceEditor, self).__init__(parent)
         self.installEventFilter(self)
@@ -74,7 +75,6 @@ class ReferenceEditor(QWidget):
         self.precache_timer.setInterval(0)  # Idle-like
         self.precache_timer.timeout.connect(self.precache)
         self.precache_timer.start()
-
 
         self.input_path = file
         self.input_type = 1
@@ -372,7 +372,7 @@ class ReferenceEditor(QWidget):
         self.video_label.sig_backwards.connect(self.step_backwards)
         self.video_label.slider_active.connect(self.toggle_02)
         self.info_pushbutton.clicked.connect(self.path_config)
-
+        
 
 
         # Track
@@ -386,11 +386,14 @@ class ReferenceEditor(QWidget):
         self.flop = False
         self.metadata = None
 
-        self.frame_cache = OrderedDict()
-        self.cache_size = 1000
-        self.lookahead =  600
-        self.lookbehind = 10
-        
+        #Caching
+        cache_size = 800
+        look_ahead =  750
+        look_behind = 50
+        mini_margin = 35
+        self.frame_cache = cw.CacheDict(cache_size, look_ahead, look_behind, mini_margin)
+        self.frame_cache.cache_changed.connect(self.slider.update)
+    
 
         
     def printsilly(self, value):
@@ -493,9 +496,7 @@ class ReferenceEditor(QWidget):
         self.FC_update()
         fps = self.metadata.get("Framerate")
         self.set_speed(fps)
-
         self.video_label.set_crop_to_image(self.metadata.get("Width"), self.metadata.get("Height"))
-
         self.sourceFramerate_label.setText(str(fps) + " fps")
         self.sourceResolution_label.setText(self.metadata.get("Resolution"))
         self.sourceFormat_label.setText(self.file_name_list[1])
@@ -523,7 +524,7 @@ class ReferenceEditor(QWidget):
         ]
         self.startAt_comboBox.addItems(startAt_list)
 
-        self.initShortcuts()
+        self.initShortcuts() 
 
     def set_speed(self, fps):
         self.playbackSpeed_label.setText(str(fps) + " fps")
@@ -550,29 +551,65 @@ class ReferenceEditor(QWidget):
         self.video_label.setPixmap(scaled_pixmap)
 
     def _enforce_cache_size(self):
-        while len(self.frame_cache) > self.cache_size:
-            # Pop oldest
-            idx, _ = self.frame_cache.popitem(last=False)
-            #print(f"[EVICT] Frame {idx}")
+        playhead_idx = self.slider.variables.get("_frame")
+        look_behind = self.frame_cache.look_behind
+        look_ahead = self.frame_cache.look_ahead
+        mini = self.frame_cache.mini_margin
+        cache = self.frame_cache
+
+        if self.slider.variables["_inPoint"] <= playhead_idx < self.slider.variables["_outPoint"]:
+            window_start = playhead_idx - look_behind
+            window_end = playhead_idx + look_ahead
+        else:
+            window_start = playhead_idx - mini
+            window_end = playhead_idx + mini
+
+
+        while len(cache._data) > cache.cache_size:
+            candidates = [k for k in cache if k < window_start or k > window_end]
+            if candidates:
+                furthest = max(candidates, key=lambda k: abs(k - playhead_idx))
+            else:
+                furthest = max(cache, key=lambda k: abs(k - playhead_idx))
+            cache.evict(furthest)
+   
 
     def precache(self):
         if self.is_playing or self.is_playing02 or self.active:
             return
 
         frame_idx = self.slider.variables.get("_frame")
-        for i in range(frame_idx + 1, frame_idx + self.lookahead):
-            if i < 0 or i > self.slider.maximum():
-                continue
-            if i not in self.frame_cache:
-                current_pos = int(self.cap.get(self.cv2.CAP_PROP_POS_FRAMES))
-                if current_pos != i:
-                    self.cap.set(self.cv2.CAP_PROP_POS_FRAMES, i)
-                ret, frame = self.cap.read()
-                if ret:
-                    rgb = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
-                    self.frame_cache[i] = rgb
-                    self._enforce_cache_size()
-                break  # Do only one at a time
+        if self.slider.variables["_inPoint"] <= frame_idx < self.slider.variables["_outPoint"]:
+# while there are cache frames available to inside the range, prioritise this over the already cached frames outside the range
+            for i in range(frame_idx - self.frame_cache.look_behind, frame_idx + self.frame_cache.look_ahead):
+                if i < self.slider.variables["_inPoint"] or i >= self.slider.variables["_outPoint"]:
+                    continue
+                if i not in self.frame_cache:
+                    current_pos = int(self.cap.get(self.cv2.CAP_PROP_POS_FRAMES))
+                    if current_pos != i:
+                        self.cap.set(self.cv2.CAP_PROP_POS_FRAMES, i)
+                    ret, frame = self.cap.read()
+                    if ret:
+                        rgb = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
+                        self.frame_cache[i] = rgb
+                        self._enforce_cache_size()
+                    break  # Do only one at a time
+            
+
+        if  frame_idx < self.slider.variables["_inPoint"] or frame_idx > self.slider.variables["_outPoint"]:
+            for i in range(frame_idx - self.frame_cache.mini_margin, frame_idx + self.frame_cache.mini_margin):
+                if i < 0 or i > self.slider.maximum():
+                    continue
+                if i not in self.frame_cache:
+                    current_pos = int(self.cap.get(self.cv2.CAP_PROP_POS_FRAMES))
+                    if current_pos != i:
+                        self.cap.set(self.cv2.CAP_PROP_POS_FRAMES, i)
+                    ret, frame = self.cap.read()
+                    if ret:
+                        rgb = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
+                        self.frame_cache[i] = rgb
+                        self._enforce_cache_size()
+                    break  # Do only one at a time
 
 
     def get_frame(self, frame_idx):
@@ -588,7 +625,6 @@ class ReferenceEditor(QWidget):
         if ret:
             rgb = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
             self.frame_cache[frame_idx] = rgb
-            # Keep cache size under limit
             self._enforce_cache_size()
             return rgb
 
@@ -601,7 +637,7 @@ class ReferenceEditor(QWidget):
 
         if self.is_playing:
             expected_frame = self.slider.variables.get("_frame")
-            if expected_frame < self.slider.variables["_outPoint"]:
+            if expected_frame < self.slider.variables["_outPoint"] - 1:
 
                 # Try cache first:
                 if expected_frame in self.frame_cache:
@@ -631,7 +667,7 @@ class ReferenceEditor(QWidget):
             frame_idx = self.slider.variables.get("_frame")
             rgb = self.get_frame(frame_idx)
             if rgb is None:
-                print(f"[PAUSED] Frame {frame_idx} could not be loaded")
+                #print(f"[PAUSED] Frame {frame_idx} could not be loaded")
                 return
 
         # Render
@@ -682,7 +718,6 @@ class ReferenceEditor(QWidget):
         if self.slider.variables["_frame"] < self.slider.maximum():
             self.slider.setValue(self.slider.variables.get("_frame") + 1)
             
-
     def toggle_playback(self):
         """Play/Pause the video."""
         if self.is_playing: #Stop
@@ -701,18 +736,13 @@ class ReferenceEditor(QWidget):
         self.is_playing = not self.is_playing
         self.is_playing02 = not self.is_playing02
 
-    #is_active returns if the cursor is pressed, True for press, false for release. 
-    #on false let's return the frame, 
-    # if it's in the range we can continue playing and if not then it can be paused and keep that frame
     def toggle_02(self, is_active):
         if self.is_playing02 and is_active:
             self.timer.stop()
             self.slider.valueChanged.connect(self.set_frame)
             self.is_playing = not self.is_playing
-            #self.update()
         elif self.is_playing02 and not is_active:
             if self.slider.variables["_frame"] >= self.slider.variables["_outPoint"] - 1 or self.slider.variables["_frame"] < self.slider.variables["_inPoint"]:
-                #self.slider.setValue(self.slider.variables.get("_inPoint"))
                 self.is_playing = False
                 self.is_playing02 = False
                 return
@@ -720,7 +750,6 @@ class ReferenceEditor(QWidget):
             self.slider.valueChanged.disconnect(self.set_frame)
             self.timer.start(1000/self.speed)
             self.is_playing = not self.is_playing
-            #self.update()
         elif not self.is_playing02:
             self.active = is_active
             if is_active:
@@ -728,7 +757,6 @@ class ReferenceEditor(QWidget):
             else:
                 self.precache_timer.start()
             return
-           
 
     def range_start(self):
         if self.slider.variables["_frame"] != self.slider.maximum():
@@ -1019,7 +1047,7 @@ def createImgaePlane(choiceCam, im_name, file_path, start_number):
     cmds.setAttr(createdImagePlane[0]+".displayOnlyIfCurrent", 1)
     cmds.setAttr(createdImagePlane[0]+".fit", 2)
     cmds.setAttr(createdImagePlane[0]+".frameOffset", 0)
-    #remove the colourspace attr for non etc, as it relys on the current occio.config and lut existing in the config
+    #remove the colourspace attr for non etc, as it relys on the occio.config and lut from in the config
     #or do the colour config properly but icbb
     #cmds.setAttr(createdImagePlane[0]+".colorSpace", "Output - sRGB", type="string")
     #cmds.setAttr(createdImagePlane[0]+".ignoreColorSpaceFileRules", 1)
@@ -1089,7 +1117,9 @@ def flush_cv2():
 -manager
 -context
 -make the editor available from the context and manager
--pyside6 for maya 2025+
+
+-cache toggle
+-cleaner cache management
 
 '''
 

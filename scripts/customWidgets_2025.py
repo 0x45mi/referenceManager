@@ -33,7 +33,7 @@ class AutoLineEdit(QLineEdit):
 class VideoRangeSlider(QtWidgets.QAbstractSlider):
 
     in_out_valueChanged = QtCore.Signal(int)  
-    slider_active = QtCore.Signal(bool)  
+    slider_active = QtCore.Signal(bool)
 
     def __init__(self, orientation=QtCore.Qt.Horizontal, parent=None):
         super().__init__(parent)
@@ -60,10 +60,11 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
         self.active_handle = None
         self.last_position = 0 #to avoid tablet cursor updating too much
 
-        #debounce timer
+        # debounce timer
         self.debounce_timer = QtCore.QTimer(self)
         self.debounce_timer.setSingleShot(True)  # Only fire once after inactivity
         self.debounce_timer.timeout.connect(self.emit_values)
+    
 
 
 # Paint        
@@ -81,12 +82,16 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
         painter.setPen(QtGui.Qt.NoPen)
         painter.drawRect(groove)
 
+
         # draw range highlight
         left = self.value_to_pixel(self.variables.get("_inPoint"))
         width = self.value_to_pixel(self.variables.get("_outPoint")) - left
         range_highlight = QtCore.QRect(left, self.height() // 2 + 2, width , 8)
         painter.setBrush(QtGui.QColor(128, 128, 128)) 
         painter.drawRect(range_highlight)
+
+        # draw cache
+        self.draw_cache(painter)
 
         # draw slider handles
         self.draw_handle(painter, self.variables.get("_inPoint"), 1, 0)
@@ -167,6 +172,15 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
                     ]
                 painter.drawConvexPolygon(triangle)
 
+    def draw_cache(self, painter):
+        for key in self.parent().parent().parent().frame_cache:
+            if key != self.maximum():
+                painter.setBrush(QtGui.QColor(50, 200, 50))
+                x_pos = self.value_to_pixel(key)
+                next = self.value_to_pixel(key + 1)
+                rect = QtCore.QRect(x_pos, self.height() // 2 + 3, next- x_pos, 6)
+                painter.drawRect(rect)
+
 
 # Events
 
@@ -189,6 +203,8 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
             self.hovered = self.active_handle
             self.update_handle(self.pixel_to_value(mouse_x))
 
+        self.update()
+
     def process_pointer_press(self, event):
         mouse_x = event.pos().x()
         if self.hovered:
@@ -203,7 +219,6 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
         self.active_handle = None
         self.slider_active.emit(False)
         
-
     def mousePressEvent(self, event):
         self.process_pointer_press(event)
         event.accept()
@@ -279,7 +294,6 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
         return int(round(self.minimum() + (pixel - 13) * (self.maximum() - self.minimum()) / (self.width() - 26), 0))
 
     #def relative_value_to_pixel(self, value):
-
 
 class FilledWidget(QtWidgets.QWidget):
     def __init__(self, height, col, parent=None):
@@ -841,4 +855,53 @@ class CropLabel(QtWidgets.QLabel):
     def resizeEvent(self, event):
         self.update()
         return super().resizeEvent(event)
-    
+
+class CacheDict(QtCore.QObject):
+    cache_changed = QtCore.Signal(int)
+
+    def __init__(self, cache_size, look_ahead, look_behind, mini_margin, *args, **kwargs):
+        super().__init__()
+        self._data = dict(*args, **kwargs)
+        self.cache_size = cache_size
+        self.look_ahead = look_ahead
+        self.look_behind = look_behind
+
+        # Out of range
+        self.mini_margin = mini_margin
+
+    def __setitem__(self, key, value):
+        if key not in self:
+            self._data[key] = value
+            self.emit_signal(key)
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def __delitem__(self, key):
+        del self._data[key]
+        self.emit_signal(key)
+
+    def __contains__(self, key):
+        return key in self._data
+
+    def __len__(self):
+        return len(self._data)
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def items(self):
+        return self._data.items()
+
+    def keys(self):
+        return self._data.keys()
+
+    def values(self):
+        return self._data.values()
+
+    def evict(self, key):
+        del self._data[key]
+
+    def emit_signal(self, key):
+        self.cache_changed.emit(key)
+
