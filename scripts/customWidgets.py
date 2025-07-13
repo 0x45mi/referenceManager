@@ -90,6 +90,9 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
         painter.setBrush(QtGui.QColor(128, 128, 128)) 
         painter.drawRect(range_highlight)
 
+        # draw cache
+        self.draw_cache(painter)
+
         # draw slider handles
         self.draw_handle(painter, self.variables.get("_inPoint"), 1, 0)
         self.draw_handle(painter, self.variables.get("_frame"), 1.5, 0)
@@ -169,6 +172,14 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
                     ]
                 painter.drawConvexPolygon(triangle)
 
+    def draw_cache(self, painter):
+        for key in self.parent().parent().parent().frame_cache:
+            if key != self.maximum():
+                painter.setBrush(QtGui.QColor(50, 200, 50))
+                x_pos = self.value_to_pixel(key)
+                next = self.value_to_pixel(key + 1)
+                rect = QtCore.QRect(x_pos, self.height() // 2 + 3, next- x_pos, 6)
+                painter.drawRect(rect)
 
 
 # Events
@@ -191,6 +202,8 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
         if self.active_handle:
             self.hovered = self.active_handle
             self.update_handle(self.pixel_to_value(mouse_x))
+
+        self.update()
 
     def process_pointer_press(self, event):
         mouse_x = event.pos().x()
@@ -846,18 +859,20 @@ class CropLabel(QtWidgets.QLabel):
 class CacheDict(QtCore.QObject):
     cache_changed = QtCore.Signal(int)
 
-    def __init__(self, cache_size, look_ahead, look_behind, *args, **kwargs):
+    def __init__(self, cache_size, look_ahead, look_behind, mini_margin, *args, **kwargs):
         super().__init__()
         self._data = dict(*args, **kwargs)
         self.cache_size = cache_size
         self.look_ahead = look_ahead
         self.look_behind = look_behind
 
+        # Out of range
+        self.mini_margin = mini_margin
+
     def __setitem__(self, key, value):
-        if len(self._data) >= self.cache_size:
-            self.evict()
-        self._data[key] = value
-        self.emit_signal(key)
+        if key not in self:
+            self._data[key] = value
+            self.emit_signal(key)
 
     def __getitem__(self, key):
         return self._data[key]
@@ -884,10 +899,8 @@ class CacheDict(QtCore.QObject):
     def values(self):
         return self._data.values()
 
-    def evict(self):
-        # Evict *some* key: first inserted in CPython ≥3.7, arbitrary in other interpreters
-        oldest_key = next(iter(self._data))
-        del self._data[oldest_key]
+    def evict(self, key):
+        del self._data[key]
 
     def emit_signal(self, key):
         self.cache_changed.emit(key)

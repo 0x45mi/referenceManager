@@ -386,16 +386,13 @@ class ReferenceEditor(QWidget):
         self.flop = False
         self.metadata = None
 
-        #self.frame_cache = OrderedDict()
-        cache_size = 1000
-        look_ahead =  600
-        look_behind = 10
-        self.frame_cache = cw.CacheDict(cache_size, look_ahead, look_behind)
-        self.cache_size = 1000
-        self.lookahead =  600
-        self.lookbehind = 10
-
-        self.frame_cache.cache_changed.connect(self.printsilly)
+        #Caching
+        cache_size = 800
+        look_ahead =  750
+        look_behind = 50
+        mini_margin = 35
+        self.frame_cache = cw.CacheDict(cache_size, look_ahead, look_behind, mini_margin)
+        self.frame_cache.cache_changed.connect(self.slider.update)
     
 
         
@@ -552,31 +549,67 @@ class ReferenceEditor(QWidget):
         #scaled_pixmap = QPixmap.fromImage(image)
 
         self.video_label.setPixmap(scaled_pixmap)
-    
+
     def _enforce_cache_size(self):
-        while len(self.frame_cache) > self.cache_size:
-            # Pop oldest
-            idx, _ = self.frame_cache.popitem(last=False)
-            #print(f"[EVICT] Frame {idx}")
+        playhead_idx = self.slider.variables.get("_frame")
+        look_behind = self.frame_cache.look_behind
+        look_ahead = self.frame_cache.look_ahead
+        mini = self.frame_cache.mini_margin
+        cache = self.frame_cache
+
+        if self.slider.variables["_inPoint"] <= playhead_idx < self.slider.variables["_outPoint"]:
+            window_start = playhead_idx - look_behind
+            window_end = playhead_idx + look_ahead
+        else:
+            window_start = playhead_idx - mini
+            window_end = playhead_idx + mini
+
+
+        while len(cache._data) > cache.cache_size:
+            candidates = [k for k in cache if k < window_start or k > window_end]
+            if candidates:
+                furthest = max(candidates, key=lambda k: abs(k - playhead_idx))
+            else:
+                furthest = max(cache, key=lambda k: abs(k - playhead_idx))
+            cache.evict(furthest)
+   
 
     def precache(self):
         if self.is_playing or self.is_playing02 or self.active:
             return
 
         frame_idx = self.slider.variables.get("_frame")
-        for i in range(frame_idx + 1, frame_idx + self.lookahead):
-            if i < 0 or i > self.slider.maximum():
-                continue
-            if i not in self.frame_cache:
-                current_pos = int(self.cap.get(self.cv2.CAP_PROP_POS_FRAMES))
-                if current_pos != i:
-                    self.cap.set(self.cv2.CAP_PROP_POS_FRAMES, i)
-                ret, frame = self.cap.read()
-                if ret:
-                    rgb = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
-                    self.frame_cache[i] = rgb
-                    self._enforce_cache_size()
-                break  # Do only one at a time
+        if self.slider.variables["_inPoint"] <= frame_idx < self.slider.variables["_outPoint"]:
+# while there are cache frames available to inside the range, prioritise this over the already cached frames outside the range
+            for i in range(frame_idx - self.frame_cache.look_behind, frame_idx + self.frame_cache.look_ahead):
+                if i < self.slider.variables["_inPoint"] or i >= self.slider.variables["_outPoint"]:
+                    continue
+                if i not in self.frame_cache:
+                    current_pos = int(self.cap.get(self.cv2.CAP_PROP_POS_FRAMES))
+                    if current_pos != i:
+                        self.cap.set(self.cv2.CAP_PROP_POS_FRAMES, i)
+                    ret, frame = self.cap.read()
+                    if ret:
+                        rgb = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
+                        self.frame_cache[i] = rgb
+                        self._enforce_cache_size()
+                    break  # Do only one at a time
+            
+
+        if  frame_idx < self.slider.variables["_inPoint"] or frame_idx > self.slider.variables["_outPoint"]:
+            for i in range(frame_idx - self.frame_cache.mini_margin, frame_idx + self.frame_cache.mini_margin):
+                if i < 0 or i > self.slider.maximum():
+                    continue
+                if i not in self.frame_cache:
+                    current_pos = int(self.cap.get(self.cv2.CAP_PROP_POS_FRAMES))
+                    if current_pos != i:
+                        self.cap.set(self.cv2.CAP_PROP_POS_FRAMES, i)
+                    ret, frame = self.cap.read()
+                    if ret:
+                        rgb = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
+                        self.frame_cache[i] = rgb
+                        self._enforce_cache_size()
+                    break  # Do only one at a time
 
 
     def get_frame(self, frame_idx):
@@ -592,7 +625,6 @@ class ReferenceEditor(QWidget):
         if ret:
             rgb = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
             self.frame_cache[frame_idx] = rgb
-            # Keep cache size under limit
             self._enforce_cache_size()
             return rgb
 
@@ -605,7 +637,7 @@ class ReferenceEditor(QWidget):
 
         if self.is_playing:
             expected_frame = self.slider.variables.get("_frame")
-            if expected_frame < self.slider.variables["_outPoint"]:
+            if expected_frame < self.slider.variables["_outPoint"] - 1:
 
                 # Try cache first:
                 if expected_frame in self.frame_cache:
