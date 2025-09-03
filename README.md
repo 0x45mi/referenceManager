@@ -34,9 +34,12 @@ The reference editor is a widget to review reference footage and add it to your 
 + If you drop an image in the viewport it will make the image plane for the sequence. Assumes editing has been done elsewhere.
 
 ## Version compatibility
-- Python 3.10 and pyside2 (Maya 2024)  <br/>
-Tested on Maya 2024 Windows  <br/>
-Worked on Maya 2022 Linux  <br/>
+- Python 3 and pyside2 (Maya 2024)  <br/>
+- Python 3 and pysyde6 (Maya 2025) <br/>
+
+Tested in Maya 2024 Windows  <br/>
+Tested in Maya 2025 Windows <br/>
+Worked in Maya 2022 Linux  <br/>
 
 ## How to install
 1. Download the repository and extract files. <br/>
