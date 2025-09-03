@@ -38,7 +38,10 @@ def install_reference_editor():
         "customWidgets.py",
         "MLoadUi_2024.py",
         "performCustomFileDropAction.mel",
-        "styleSheet.py"
+        "styleSheet.py",
+        "customWidgets_2025.py",
+        "MLoadUi_2025.py",
+        "performCustomFileDropAction2025.mel"
     ]
 
     for file_name in files:
@@ -58,14 +61,25 @@ def install_reference_editor():
         cmds.warning(f"Missing mod file: {mod_source}")
 
     # Copy userSetup.mel
-    user_setup_source = os.path.join(repo_source, "userSetup.mel")
-    user_setup_target = os.path.join(cmds.internalVar(usd=True))  # User scripts dir
-    user_setup_target = os.path.join(user_setup_target, "userSetup.mel")
 
-    if os.path.isfile(user_setup_source):
-        shutil.copy(user_setup_source, user_setup_target)
-    else:
-        cmds.warning(f"Missing userSetup.mel: {user_setup_source}")
+
+    directory_path = cmds.internalVar(userAppDir=True)
+
+    for child in os.listdir(directory_path):
+        if len(child) == 4 and child.isnumeric():
+            if int(child) <= 2024:
+                user_setup_source = os.path.join(repo_source, "userSetup.mel")
+            else:
+                user_setup_source = os.path.join(repo_source, "userSetup_2025.mel")
+
+            user_setup_target = os.path.join(cmds.internalVar(userAppDir=True), child, "scripts")  # User scripts dir
+            user_setup_target = os.path.join(user_setup_target, "userSetup.mel")
+
+            if os.path.isfile(user_setup_source):
+                shutil.copy(user_setup_source, user_setup_target)
+            else:
+                cmds.warning(f"Missing userSetup.mel: {user_setup_source}")
+
 
     # Create cv2Bundle folder
     cv2_path = os.path.join(target_scripts_folder, "cv2Bundle")
