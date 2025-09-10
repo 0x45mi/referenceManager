@@ -487,7 +487,7 @@ class ReferenceEditor(QWidget):
         """Sets video settings"""
         self.get_metadata(self.input_path)
         self.cap = self.cv2.VideoCapture(self.input_path)
-        self.slider.setMaximum(int(self.cap.get(self.cv2.CAP_PROP_FRAME_COUNT))-1)
+        self.slider.setMaximum(int(self.cap.get(self.cv2.CAP_PROP_FRAME_COUNT)))
         self.slider.variables["_outPoint"] = self.slider.maximum()
         self.slider.setEnabled(True)
         self.show_frame()
