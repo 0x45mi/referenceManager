@@ -173,3 +173,79 @@ def Help_line_style():
             border: none;
             color: rgba(169, 169, 169, 255);
         """
+
+def maya_button_style():
+    return """
+        QPushButton {
+            border-style: outset;
+            border-width: 1px;
+            border-radius: 4px;
+            border-color: #111111;
+            background: qlineargradient(
+                x1: 0, y1: 0, x2: 0, y2: 1,
+                stop: 0 rgba(65, 65, 65, 255),
+                stop: 0.15 rgba(47, 47, 47, 255),
+                stop: 1 rgba(40, 40, 40, 255)
+            );
+        }
+
+        QPushButton:hover {
+            color: rgba(255, 255, 255, 220); /* Brighter text */
+            background: qlineargradient(
+                x1: 0, y1: 0, x2: 0, y2: 1,
+                stop: 0 rgba(80, 80, 80, 255), /* Brighter gray */
+                stop: 0.25 rgba(75, 75, 75, 255),
+                stop: 0.5 rgba(60, 60, 60, 255),
+                stop: 0.75 rgba(50, 50, 50, 255),
+                stop: 1 rgba(45, 45, 45, 255)
+            );
+        }
+
+        QPushButton:pressed {
+            color: rgba(255, 255, 255, 240); /* Even brighter text */
+            background: qlineargradient(
+                x1: 0, y1: 0, x2: 0, y2: 1,
+                stop: 0 rgba(100, 100, 100, 255), /* Brighter gray */
+                stop: 0.25 rgba(90, 90, 90, 255),
+                stop: 0.5 rgba(80, 80, 80, 255),
+                stop: 0.75 rgba(70, 70, 70, 255),
+                stop: 1 rgba(60, 60, 60, 255)
+            );
+        }
+    """
+
+def Light_button_style():
+    return """
+        QPushButton {
+            border-style: outset;
+            border-width: 0px;
+            border-radius: 3px;
+            border-color: #212121;
+            background-color: #313131; 
+
+        }
+
+        QPushButton:hover {
+            color: rgba(255, 255, 255, 220); /* Brighter text */
+            background: qlineargradient(
+                x1: 0, y1: 0, x2: 0, y2: 1,
+                stop: 0 rgba(80, 80, 80, 255), /* Brighter gray */
+                stop: 0.25 rgba(75, 75, 75, 255),
+                stop: 0.5 rgba(60, 60, 60, 255),
+                stop: 0.75 rgba(50, 50, 50, 255),
+                stop: 1 rgba(45, 45, 45, 255)
+            );
+        }
+
+        QPushButton:pressed {
+            color: rgba(255, 255, 255, 240); /* Even brighter text */
+            background: qlineargradient(
+                x1: 0, y1: 0, x2: 0, y2: 1,
+                stop: 0 rgba(100, 100, 100, 255), /* Brighter gray */
+                stop: 0.25 rgba(90, 90, 90, 255),
+                stop: 0.5 rgba(80, 80, 80, 255),
+                stop: 0.75 rgba(70, 70, 70, 255),
+                stop: 1 rgba(60, 60, 60, 255)
+            );
+        }
+    """

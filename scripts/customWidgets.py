@@ -320,6 +320,30 @@ class FilledWidget(QtWidgets.QWidget):
 
         painter.end()
 
+class FilledVWidget(QtWidgets.QWidget):
+    def __init__(self, col, parent=None):
+        super().__init__(parent)
+        self.setAutoFillBackground(True)  # Ensure the background is painted
+        self.colour = col
+
+        # Create a layout inside this widget
+        self.layout = QtWidgets.QVBoxLayout()
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(0)
+        self.setLayout(self.layout)  # Apply the layout
+
+    def paintEvent(self, event):
+        """Custom painting method to fill background color."""
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+
+        bg_rect = self.rect()  # Get full widget area
+        painter.setBrush(QtGui.QBrush(QtGui.QColor(self.colour)))  # Set red background
+        painter.setPen(QtCore.Qt.NoPen)  # Remove border
+        painter.drawRect(bg_rect)  # Draw background
+
+        painter.end()
+
 class FilledWidgetGradient(QtWidgets.QWidget):
     def __init__(self, height, parent=None):
         super().__init__(parent)
@@ -530,6 +554,75 @@ class IconButton(QtWidgets.QPushButton):
             startAngle = 0 * 16
             spanAngle = 360 * 16
             painter.drawArc(rectangle, startAngle, spanAngle)
+
+        if self.icon_type == "Copy":
+            rectangle2 = QtCore.QRect(self.width() // 2 - 2, self.height() // 2 - 7, 8, 10)
+            painter.setPen(QtGui.QPen((QtGui.QColor(150, 150, 150, 255)), 2, QtGui.Qt.SolidLine, QtGui.Qt.RoundCap, QtGui.Qt.RoundJoin))
+            painter.setBrush(QtGui.QBrush((QtGui.QColor(150, 150, 150, 0))))
+            painter.drawRect(rectangle2)
+
+            rectangle = QtCore.QRect(self.width() // 2 - 6, self.height() // 2 - 3, 8, 10)
+            painter.setPen(QtGui.QPen((QtGui.QColor(150, 150, 150, 255)), 2, QtGui.Qt.SolidLine, QtGui.Qt.RoundCap, QtGui.Qt.RoundJoin))
+            painter.setBrush(QtGui.QBrush((QtGui.QColor(150, 150, 150, 255))))
+            painter.drawRect(rectangle)
+
+
+        if self.icon_type == "Edit":
+            pen = QtGui.QPen((QtGui.QColor(150, 150, 150, 255)), 2, QtGui.Qt.SolidLine, QtGui.Qt.RoundCap, QtGui.Qt.RoundJoin)
+            brush = QtGui.QBrush((QtGui.QColor(150, 150, 150, 255)))
+            painter.setPen(pen)
+            painter.setBrush(brush)
+
+            body = QtCore.QRectF(9, 11, 8, 4) 
+            eraser = QtCore.QRectF(20, 11, 1, 4) 
+            eraser_tip = QtCore.QRectF(21, 11, 1, 4) 
+            tip = QtGui.QPolygonF([
+                QtCore.QPointF(4, 13),  
+                QtCore.QPointF(8, 11),  
+                QtCore.QPointF(8, 15)  
+            ])
+            tip_tip = QtGui.QPolygonF([
+                QtCore.QPointF(4, 13),  
+                QtCore.QPointF(6, 12),  
+                QtCore.QPointF(6, 14)  
+            ])
+
+            painter.save()
+            painter.rotate(-45)
+            painter.translate(-12, 6.5)
+            painter.drawRect(body)
+            painter.drawRect(eraser)
+            painter.drawRoundedRect(eraser_tip, 1, 1)
+            painter.drawPolygon(tip)
+            painter.setPen(QtGui.QPen((QtGui.QColor(130, 130, 130, 255)), 2, QtGui.Qt.SolidLine, QtGui.Qt.RoundCap, QtGui.Qt.MiterJoin))
+            painter.drawPolygon(tip_tip)
+            painter.restore()
+
+        if self.icon_type == "mini_reset":
+            points = [
+                QtCore.QPoint(self.width() // 2 - 1, self.height() // 2 + 4),  
+                QtCore.QPoint(self.width() // 2 - 1, self.height() // 2 - 4),  
+                QtCore.QPoint(self.width() // 2 - 8, self.height() // 2)
+            ]
+
+            triangle = QtGui.QPolygon(points)
+            rectangle = QtCore.QRect(self.width() // 2 - 1, self.height() // 2 - 1 , 8, 2)
+            painter.setPen(QtGui.QPen((QtGui.QColor(160, 160, 160, 255)), 1, QtGui.Qt.SolidLine, QtGui.Qt.RoundCap, QtGui.Qt.RoundJoin))
+            painter.drawConvexPolygon(triangle)
+            painter.drawRect(rectangle)
+
+        if self.icon_type == "mini_reset2":
+            
+            arcRectangle = QtCore.QRect(self.width() // 2 - 1 , self.height() // 2 - 2 , 7, 7)
+            painter.setPen(QtGui.QPen((QtGui.QColor(160, 160, 160, 255)), 2, QtGui.Qt.SolidLine, QtGui.Qt.RoundCap, QtGui.Qt.RoundJoin))
+            painter.drawArc(arcRectangle, 270*16, 180*16)
+
+            painter.drawLine(7, 6, 14, 6)
+            painter.drawLine(10, 9, 7, 6)
+            painter.drawLine(10, 3, 7, 6)
+
+
+            
 
 
         painter.end()
