@@ -40,6 +40,7 @@ The reference editor is a widget to review reference footage and add it to your 
 Tested in Maya 2024 Windows  <br/>
 Tested in Maya 2025 Windows <br/>
 Worked in Maya 2022 Linux  <br/>
+Worked in Maya 2023 Linux  <br/>
 
 ## How to install
 1. Download the repository and extract files. <br/>
