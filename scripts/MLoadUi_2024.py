@@ -621,10 +621,9 @@ class ReferenceEditor(QWidget):
         ret, frame = self.cap.read()
         if ret:
             rgb = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
-            if self.cacheConfig_file.exists():
-                if self.readCacheSettings().get("status") == True:
-                    self.frame_cache[frame_idx] = rgb
-                    self._enforce_cache_size()
+            if (self.cacheConfig_file.exists() and self.readCacheSettings().get("status") == True) or not self.cacheConfig_file.exists():                
+                self.frame_cache[frame_idx] = rgb
+                self._enforce_cache_size()
             return rgb
 
         return None
@@ -653,10 +652,9 @@ class ReferenceEditor(QWidget):
                             self.toggle_playback()
                             return
                         
-                        if self. cacheConfig_file.exists():
-                            if self.readCacheSettings().get("status") == True:
-                                self.frame_cache[frame_idx] = rgb
-                                self._enforce_cache_size()
+                        if (self.cacheConfig_file.exists() and self.readCacheSettings().get("status") == True) or not self.cacheConfig_file.exists(): 
+                            self.frame_cache[frame_idx] = rgb
+                            self._enforce_cache_size()
 
                     else:
                         self.toggle_playback()
@@ -917,15 +915,11 @@ class ReferenceEditor(QWidget):
         self.frame_cache.cache_changed.connect(self.slider.update)
 
     def toggleCache(self):
-        if self.cacheConfig_file.exists():
-            if self.readCacheSettings().get("status") == False:
-                try:
-                    self.precache_timer.timeout.disconnect(self.precache)
-                except:
-                    pass
-            else:
-                self.precache_timer.timeout.connect(self.precache)
-                self.precache_timer.start()
+        if self.cacheConfig_file.exists() and self.readCacheSettings().get("status") == False:
+            try:
+                self.precache_timer.timeout.disconnect(self.precache)
+            except:
+                pass
         else:
             self.precache_timer.timeout.connect(self.precache)
             self.precache_timer.start()
