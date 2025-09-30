@@ -1092,7 +1092,8 @@ class ReferenceEditor(QWidget):
         self.precache_timer.stop()
         self.exitShortcuts()
         self.cap.release()
-        self.settings_win.close()
+        if hasattr(self, "settings_win") and self.settings_win is not None:
+            self.settings_win.close()
         event.accept()
 
 

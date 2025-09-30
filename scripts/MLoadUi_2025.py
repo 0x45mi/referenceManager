@@ -3,11 +3,13 @@ import sys
 import subprocess
 from PySide6.QtWidgets import QApplication, QMessageBox, QWidget,  QPushButton, QVBoxLayout, QLabel, QFileDialog, QHBoxLayout, QSpacerItem, QSizePolicy, QFrame, QLineEdit, QGridLayout, QComboBox, QStackedLayout, QLayout
 from PySide6.QtCore import Qt, QTimer, QSize, QEvent, QCoreApplication
-from PySide6.QtGui import QImage, QPixmap, QFont, QIntValidator, QTransform, QKeyEvent, QKeySequence, QShortcut
+from PySide6.QtGui import QGuiApplication, QImage, QPixmap, QFont, QIntValidator, QTransform, QKeyEvent, QKeySequence, QShortcut
 import imp
 import customWidgets_2025 as cw
 imp.reload(cw)
 import styleSheet
+import editorSettingsWindow_2025 as sett
+imp.reload(sett)
 import ntpath
 import json
 from pathlib import Path
@@ -71,16 +73,19 @@ class ReferenceEditor(QWidget):
         self.cap = None
         self.speed = 1
 
-        self.precache_timer = QTimer()
-        self.precache_timer.setInterval(0)  # Idle-like
-        self.precache_timer.timeout.connect(self.precache)
-        self.precache_timer.start()
-
         self.input_path = file
         self.input_type = 1
         self.file_name_list = ntpath.basename(file).rsplit(".", 1)
         self.file_nice_name  = ''.join([char for char in self.file_name_list[0] if char.isalnum()])
         self.my_ref_folder = None
+
+        self.pathConfig_file = Path(f"{script_directory}/pathconfig.txt")
+        self.cacheConfig_file = Path(f"{script_directory}/cacheconfig.txt")
+        self.plateConfig_file = Path(f"{script_directory}/plateconfig.txt")
+
+        self.precache_timer = QTimer()
+        self.precache_timer.setInterval(0)  # Idle-like
+        self.toggleCache()
 
         ### Ui elements ###
 
@@ -349,7 +354,6 @@ class ReferenceEditor(QWidget):
         mk_shortcut("self.sh_flip", Qt.ShiftModifier | Qt.Key_Y, self.flip_vis)
         mk_shortcut("self.sh_crop", Qt.Key_C, self.crop_vis)
 
-
         ### Event handlers ###
         self.findChild(QPushButton, "Step_one_frame_backwards").clicked.connect(self.step_backwards)
         self.findChild(QPushButton, "Step_one_frame_forwards").clicked.connect(self.step_forwards)
@@ -371,10 +375,8 @@ class ReferenceEditor(QWidget):
         self.video_label.sig_forwards.connect(self.step_forwards)
         self.video_label.sig_backwards.connect(self.step_backwards)
         self.video_label.slider_active.connect(self.toggle_02)
-        self.info_pushbutton.clicked.connect(self.path_config)
+        self.info_pushbutton.clicked.connect(self.open_settings)
         
-
-
         # Track
         self.is_playing = False
         self.is_playing02 = False
@@ -387,17 +389,12 @@ class ReferenceEditor(QWidget):
         self.metadata = None
 
         #Caching
-        cache_size = 800
-        look_ahead =  750
-        look_behind = 50
-        mini_margin = 35
-        self.frame_cache = cw.CacheDict(cache_size, look_ahead, look_behind, mini_margin)
+        self.frame_cache = self.setCacheSettings()
         self.frame_cache.cache_changed.connect(self.slider.update)
-    
 
         
     def printsilly(self, value):
-        print(value) # first signal connect
+        print(value) # first signal connect for testing
 
     def get_metadata(self, video_path):
         cmd = [
@@ -624,8 +621,9 @@ class ReferenceEditor(QWidget):
         ret, frame = self.cap.read()
         if ret:
             rgb = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
-            self.frame_cache[frame_idx] = rgb
-            self._enforce_cache_size()
+            if (self.cacheConfig_file.exists() and self.readCacheSettings().get("status") == True) or not self.cacheConfig_file.exists():                
+                self.frame_cache[frame_idx] = rgb
+                self._enforce_cache_size()
             return rgb
 
         return None
@@ -650,11 +648,14 @@ class ReferenceEditor(QWidget):
                         frame_idx = int(self.cap.get(self.cv2.CAP_PROP_POS_FRAMES)) - 1
                         if frame_idx < self.slider.variables["_outPoint"]:
                             rgb = self.cv2.cvtColor(frame, self.cv2.COLOR_BGR2RGB)
-                            self.frame_cache[frame_idx] = rgb
-                            self._enforce_cache_size()
                         else:
                             self.toggle_playback()
                             return
+                        
+                        if (self.cacheConfig_file.exists() and self.readCacheSettings().get("status") == True) or not self.cacheConfig_file.exists(): 
+                            self.frame_cache[frame_idx] = rgb
+                            self._enforce_cache_size()
+
                     else:
                         self.toggle_playback()
                         return
@@ -789,7 +790,7 @@ class ReferenceEditor(QWidget):
         self.flop = not self.flop
         self.video_label.crop_flop()
         self.set_frame(self.slider.variables.get("_frame"))
-
+         
     def path_config(self):
         ref_file = QFileDialog.getExistingDirectory(self, "Pick where you want to save your references", script_directory, QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks)
         if ref_file:
@@ -797,10 +798,11 @@ class ReferenceEditor(QWidget):
             with open (config_file, "w") as f:
                 f.write(ref_file)
             self.set_my_ref_folder(config_file)
+            if self.settings_win:
+                self.settings_win.path_lineEdit.setText(ref_file)
             return True
         else:
             return False
-
 
     def set_my_ref_folder(self, config_file):
         with open (config_file)as f:
@@ -823,9 +825,116 @@ class ReferenceEditor(QWidget):
                 return False
         except:
             return self.path_config()
+        
+    def open_settings(self):
+        if hasattr(self, "settings_win") and self.settings_win is not None:
+            self.settings_win.close()
 
+        self.settings_win = sett.SettingsWindow(parent=self)
+        self.settings_win.editButton.clicked.connect(self.path_config)
+
+        outputPath = ""
+        if not self.pathConfig_file.exists():
+            outputPath = ""
+        
+        if self.pathConfig_file.exists():
+            with open(self.pathConfig_file, "r") as f:
+                outputPath = f.read().strip()
+
+        if not self.cacheConfig_file.exists():
+            with open(self.cacheConfig_file, "w") as f:
+                f.write("True\n800\n750\n50\n")
+
+        if self.cacheConfig_file.exists():
+            try:
+                cache_settings = self.readCacheSettings()
+            except:
+                with open(self.cacheConfig_file, "w") as f:
+                    f.write("True\n800\n750\n50\n")
+        
+        if not self.plateConfig_file.exists():
+            with open(self.plateConfig_file, "w") as f:
+                f.write("0")
+        
+        if self.plateConfig_file.exists():
+            with open(self.plateConfig_file, "r") as f:
+                plateConfig = f.read().strip()
+
+        for line_edit in self.settings_win.caching_widget.findChildren(QLineEdit):
+            line_edit.textChanged.connect(self.onLineEditChanged)
+        self.settings_win.cachingCheckbox.clicked.connect(self.onLineEditChanged)
+        self.settings_win.cacheReset.clicked.connect(self.onLineEditChanged)
+        self.settings_win.radioButton_layout.imagePlane_rb.toggled.connect(self.onRadioButtonClicked)
+
+        self.settings_win.populateSettings(outputPath, cache_settings["status"], str(cache_settings["size"]), str(cache_settings["lookAhead"]), str(cache_settings["lookBehind"]), int(plateConfig))
+        self.settings_win.show()
+
+    def writeCache(self):
+        cacheStatus = self.settings_win.cachingCheckbox.isChecked()
+        cacheSize = self.settings_win.cacheSize.line_edit.text()
+        lookAhead = self.settings_win.lookAhead.line_edit.text()
+        lookBehind = self.settings_win.lookBehind.line_edit.text()
+        with open(self.cacheConfig_file, "w") as f:
+                f.write(f"{cacheStatus}\n{cacheSize}\n{lookAhead}\n{lookBehind}\n")
+
+    def setCacheSettings(self):
+        if self.cacheConfig_file.exists():
+            cache_settings = self.readCacheSettings()
+            frame_cache = cw.CacheDict(cache_settings["size"], cache_settings["lookAhead"], cache_settings["lookBehind"], mini_margin = 35)
+            if cache_settings["status"] != True:
+                frame_cache = cw.CacheDict(0, 0, 0, 0)
+        else: 
+            frame_cache = cw.CacheDict(cache_size = 800, look_ahead = 750, look_behind = 50, mini_margin = 35)
+        return frame_cache
+    
+    def readCacheSettings(self):
+        if self.cacheConfig_file.exists():
+            try:
+                with open(self.cacheConfig_file, "r") as f:
+                        lines = [line.strip() for line in f.readlines()]           
+                return {
+                    "status": lines[0].lower() == "true",
+                    "size": int(lines[1]),
+                    "lookAhead": int(lines[2]),
+                    "lookBehind": int(lines[3])
+                }
+            except:
+                return {
+                    "status": True,
+                    "size": 800,
+                    "lookAhead": 750,
+                    "lookBehind": 50
+                }
+    
+    def applyNewCacheSettings(self):
+        try:
+            self.frame_cache.cache_changed.disconnect(self.slider.update)
+        except (AttributeError, TypeError):
+            pass  
+        self.frame_cache = self.setCacheSettings()
+        self.frame_cache.cache_changed.connect(self.slider.update)
+
+    def toggleCache(self):
+        if self.cacheConfig_file.exists() and self.readCacheSettings().get("status") == False:
+            try:
+                self.precache_timer.timeout.disconnect(self.precache)
+            except:
+                pass
+        else:
+            self.precache_timer.timeout.connect(self.precache)
+            self.precache_timer.start()
+    
+    def onRadioButtonClicked(self, checked):
+        with open(self.plateConfig_file, "w") as f:
+            f.write("0" if checked else "1")
+
+    def onLineEditChanged(self):
+        self.writeCache()
+        self.setCacheSettings()
+        self.applyNewCacheSettings()
+        self.toggleCache()
+        self.slider.update()
                 
-
     def resizeEvent(self, event):
         if self.cap:
             self.set_frame(self.slider.variables.get("_frame"))
@@ -970,7 +1079,6 @@ class ReferenceEditor(QWidget):
         return QWidget.eventFilter(self, obj, event)
         #return super(ReferenceEditor, self).eventFilter(obj, event)
 
-
     def initShortcuts(self):
         for shortcut in self.shortcut_list:
             shortcut.setEnabled(1)
@@ -984,6 +1092,8 @@ class ReferenceEditor(QWidget):
         self.precache_timer.stop()
         self.exitShortcuts()
         self.cap.release()
+        if hasattr(self, "settings_win") and self.settings_win is not None:
+            self.settings_win.close()
         event.accept()
 
 
@@ -1030,9 +1140,19 @@ def nameDialog(name, file_path, start_number):
         im_name = cmds.promptDialog(query=True, text=True)
         #if cmds.imggePlane(query=True, name=True)
         if im_name == '':
-            im_name = 'noNameImagePlane'        
-        createImgaePlane(choiceCam, im_name, file_path, start_number)
+            im_name = 'noNameImagePlane' 
 
+        plateConfig_file = Path(f"{script_directory}/plateconfig.txt")
+        if plateConfig_file.exists():
+            with open(plateConfig_file, "r") as f:
+                plateConfig = int(f.read().strip())
+            if plateConfig == 1:
+                createFreeImagePlane(choiceCam, im_name, file_path, start_number)
+            else:
+                createImgaePlane(choiceCam, im_name, file_path, start_number)
+        else:
+                createImgaePlane(choiceCam, im_name, file_path, start_number)
+               
 def createImgaePlane(choiceCam, im_name, file_path, start_number):
     im_name = im_name + "_plate"
     start_number = str(start_number).zfill(4)
@@ -1054,6 +1174,58 @@ def createImgaePlane(choiceCam, im_name, file_path, start_number):
 
     #Extending Frame Cache to be long enough! Add an extra 100 frames for just in case!
     shot_length = cmds.playbackOptions(q=1, aet=1) - cmds.playbackOptions(q=1, ast=1)
+    cmds.setAttr(createdImagePlane[0]+".frameCache", int(shot_length)+100)
+    cmds.rename(createdImagePlane[0], im_name)
+    try:		
+        cmds.select(im_name) 
+    except:
+        pass
+    
+
+# Courtsey of Kev
+def createFreeImagePlane(choiceCam, im_name, file_path, start_number):
+    im_name = im_name + "_plate"
+    start_number = str(start_number).zfill(4)
+    file_path = file_path.replace("%04d", start_number)
+    # free image plane
+    try:
+        createdImagePlane = cmds.imagePlane( fileName=file_path, name=im_name )
+    except:
+        createdImagePlane = cmds.imagePlane( fileName=file_path, name=im_name + "#" )
+    # group
+    ipGRP = choiceCam + "_ipGRP" 
+
+    if not cmds.objExists(ipGRP):
+
+        cmds.group( empty=True, name= ipGRP)
+
+        try:
+                    cmds.parentConstraint(
+                        choiceCam,
+                        ipGRP,
+                        maintainOffset=False,
+                        name="refPlane_parentConstraint"
+                    )
+        except Exception as e:
+            om.MGlobal.displayWarning(f"Failed to constrain {ipGRP} to {choiceCam}: {e}")
+
+    cmds.parent(createdImagePlane[1], ipGRP, shape=False)
+    # Attrs
+    cmds.setAttr(f"{createdImagePlane[0]}.useFrameExtension", 1)
+    cmds.setAttr(f"{createdImagePlane[0]}.translateX", 0)
+    cmds.setAttr(f"{createdImagePlane[0]}.translateY", 0)
+    cmds.setAttr(f"{createdImagePlane[0]}.translateZ", -25)
+    cmds.setAttr(f"{createdImagePlane[0]}.rotateX", 0)
+    cmds.setAttr(f"{createdImagePlane[0]}.rotateY", 0)
+    cmds.setAttr(f"{createdImagePlane[0]}.rotateZ", 0)
+    cmds.setAttr(f"{createdImagePlane[1]}.frameOffset", 0)
+    cmds.addAttr(f"{createdImagePlane[0]}", longName="retime_curve", attributeType="double", defaultValue=0, keyable=True)
+    shot_length = cmds.playbackOptions(q=1, aet=1) - cmds.playbackOptions(q=1, ast=1)
+    cmds.setKeyframe(f"{createdImagePlane[0]}", attribute="retime_curve", time=start_number, value=float(start_number))
+    cmds.setKeyframe(f"{createdImagePlane[0]}", attribute="retime_curve", time=shot_length, value=shot_length)
+    cmds.connectAttr(f"{createdImagePlane[0]}.retime_curve", f"{createdImagePlane[1]}.frameExtension", force=True)
+    cmds.keyTangent(f"{createdImagePlane[0]}.retime_curve", inTangentType="spline", outTangentType="spline")
+    cmds.setInfinity(f"{createdImagePlane[0]}.retime_curve", postInfinite="linear")
     cmds.setAttr(createdImagePlane[0]+".frameCache", int(shot_length)+100)
     cmds.rename(createdImagePlane[0], im_name)
     try:		
@@ -1118,8 +1290,6 @@ def flush_cv2():
 -context
 -make the editor available from the context and manager
 
--cache toggle
 -cleaner cache management
-
 '''
 
