@@ -1,9 +1,9 @@
 import os
 import sys
 import subprocess
-from PySide6.QtWidgets import QApplication, QMessageBox, QWidget,  QPushButton, QVBoxLayout, QLabel, QFileDialog, QHBoxLayout, QSpacerItem, QSizePolicy, QFrame, QLineEdit, QGridLayout, QComboBox, QStackedLayout, QLayout
-from PySide6.QtCore import Qt, QTimer, QSize, QEvent, QCoreApplication
-from PySide6.QtGui import QGuiApplication, QImage, QPixmap, QFont, QIntValidator, QTransform, QKeyEvent, QKeySequence, QShortcut
+from PySide6.QtWidgets import QApplication, QMessageBox, QWidget,  QPushButton, QVBoxLayout, QLabel, QFileDialog, QHBoxLayout, QSpacerItem, QSizePolicy, QFrame, QLineEdit, QGridLayout, QComboBox, QStackedLayout
+from PySide6.QtCore import Qt, QTimer, QSize, QEvent
+from PySide6.QtGui import QImage, QPixmap, QFont, QIntValidator, QTransform, QKeySequence, QShortcut
 import imp
 import customWidgets_2025 as cw
 imp.reload(cw)
@@ -19,7 +19,7 @@ import threading
 import maya.OpenMaya as om
 import maya.OpenMayaAnim as oma
 from maya import OpenMayaUI as omui
-import importlib.util
+import maya.mel as mel
 import inspect 
 from shiboken6 import wrapInstance
 from collections import OrderedDict
@@ -85,8 +85,7 @@ class ReferenceEditor(QWidget):
 
         self.precache_timer = QTimer()
         self.precache_timer.setInterval(0)  # Idle-like
-        self.toggleCache()
-
+        
         ### Ui elements ###
 
         # VIDEO
@@ -522,6 +521,7 @@ class ReferenceEditor(QWidget):
         self.startAt_comboBox.addItems(startAt_list)
 
         self.initShortcuts() 
+        self.toggleCache()
 
     def set_speed(self, fps):
         self.playbackSpeed_label.setText(str(fps) + " fps")
@@ -1105,9 +1105,9 @@ def cameraDialog(name, file_path, start_number):
     cams = cmds.listCameras()
 
     cmds.window("CameraDialog", maximizeButton = False, minimizeButton = False)
-    cmds.columnLayout(adjustableColumn = True, w=100)
+    cmds.columnLayout(adjustableColumn = True, w=100, margins=9, generalSpacing=9)
     #, margins=9, generalSpacing=9
-    cmds.columnLayout(adjustableColumn = True, w=100)
+    cmds.columnLayout(adjustableColumn = True, w=100, generalSpacing=4)
     #, generalSpacing=4
     cmds.text("Pick a camera:", align="left")
     cmds.optionMenu("cameraChoices")
@@ -1115,7 +1115,7 @@ def cameraDialog(name, file_path, start_number):
         cmds.menuItem(label = cam)
 
     cmds.setParent('..')
-    cmds.rowLayout( numberOfColumns=2, columnWidth=(50, 50))
+    cmds.rowLayout( numberOfColumns=2, columnWidth=(50, 50), adjustableColumn=(1, 2), generalSpacing = 9)
     #, adjustableColumn=(1, 2), generalSpacing = 9
     cmds.button("cancel", height=24, command=lambda x:cmds.deleteUI("CameraDialog"))
     cmds.button("confirm", command=lambda x:nameDialog(name, file_path, start_number), height=24)
@@ -1209,7 +1209,7 @@ def createFreeImagePlane(choiceCam, im_name, file_path, start_number):
         except Exception as e:
             om.MGlobal.displayWarning(f"Failed to constrain {ipGRP} to {choiceCam}: {e}")
 
-    cmds.parent(createdImagePlane[1], ipGRP, shape=False)
+    mel.eval('catchQuiet(`parent "%s" "%s"`);' % (createdImagePlane[1], ipGRP))
     # Attrs
     cmds.setAttr(f"{createdImagePlane[0]}.useFrameExtension", 1)
     cmds.setAttr(f"{createdImagePlane[0]}.translateX", 0)
@@ -1222,7 +1222,7 @@ def createFreeImagePlane(choiceCam, im_name, file_path, start_number):
     cmds.addAttr(f"{createdImagePlane[0]}", longName="retime_curve", attributeType="double", defaultValue=0, keyable=True)
     shot_length = cmds.playbackOptions(q=1, aet=1) - cmds.playbackOptions(q=1, ast=1)
     cmds.setKeyframe(f"{createdImagePlane[0]}", attribute="retime_curve", time=start_number, value=float(start_number))
-    cmds.setKeyframe(f"{createdImagePlane[0]}", attribute="retime_curve", time=shot_length, value=shot_length)
+    cmds.setKeyframe(f"{createdImagePlane[0]}", attribute="retime_curve", time=(int(start_number) + int(shot_length)), value=(int(start_number) + int(shot_length)))
     cmds.connectAttr(f"{createdImagePlane[0]}.retime_curve", f"{createdImagePlane[1]}.frameExtension", force=True)
     cmds.keyTangent(f"{createdImagePlane[0]}.retime_curve", inTangentType="spline", outTangentType="spline")
     cmds.setInfinity(f"{createdImagePlane[0]}.retime_curve", postInfinite="linear")

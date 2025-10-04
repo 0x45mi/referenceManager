@@ -1,9 +1,9 @@
 import os
 import sys
 import subprocess
-from PySide2.QtWidgets import QApplication, QMessageBox, QWidget,  QPushButton, QShortcut, QVBoxLayout, QLabel, QFileDialog, QHBoxLayout, QSpacerItem, QSizePolicy, QFrame, QLineEdit, QGridLayout, QComboBox, QStackedLayout, QLayout
-from PySide2.QtCore import Qt, QTimer, QSize, QEvent, QCoreApplication
-from PySide2.QtGui import QGuiApplication, QImage, QPixmap, QFont, QIntValidator, QTransform, QKeyEvent, QKeySequence
+from PySide2.QtWidgets import QApplication, QMessageBox, QWidget,  QPushButton, QShortcut, QVBoxLayout, QLabel, QFileDialog, QHBoxLayout, QSpacerItem, QSizePolicy, QFrame, QLineEdit, QGridLayout, QComboBox, QStackedLayout
+from PySide2.QtCore import Qt, QTimer, QSize, QEvent
+from PySide2.QtGui import QImage, QPixmap, QFont, QIntValidator, QTransform, QKeySequence
 import imp
 import customWidgets as cw
 imp.reload(cw)
@@ -19,7 +19,7 @@ import threading
 import maya.OpenMaya as om
 import maya.OpenMayaAnim as oma
 from maya import OpenMayaUI as omui
-import importlib.util
+import maya.mel as mel
 import inspect 
 from shiboken2 import wrapInstance
 from collections import OrderedDict
@@ -85,8 +85,7 @@ class ReferenceEditor(QWidget):
 
         self.precache_timer = QTimer()
         self.precache_timer.setInterval(0)  # Idle-like
-        self.toggleCache()
-
+        
         ### Ui elements ###
 
         # VIDEO
@@ -522,6 +521,7 @@ class ReferenceEditor(QWidget):
         self.startAt_comboBox.addItems(startAt_list)
 
         self.initShortcuts() 
+        self.toggleCache()
 
     def set_speed(self, fps):
         self.playbackSpeed_label.setText(str(fps) + " fps")
@@ -1209,7 +1209,7 @@ def createFreeImagePlane(choiceCam, im_name, file_path, start_number):
         except Exception as e:
             om.MGlobal.displayWarning(f"Failed to constrain {ipGRP} to {choiceCam}: {e}")
 
-    cmds.parent(createdImagePlane[1], ipGRP)
+    mel.eval('catchQuiet(`parent "%s" "%s"`);' % (createdImagePlane[1], ipGRP))
     # Attrs
     cmds.setAttr(f"{createdImagePlane[0]}.useFrameExtension", True)
     cmds.setAttr(f"{createdImagePlane[0]}.translateX", 0)
@@ -1221,8 +1221,8 @@ def createFreeImagePlane(choiceCam, im_name, file_path, start_number):
     cmds.setAttr(f"{createdImagePlane[1]}.frameOffset", 0)
     cmds.addAttr(f"{createdImagePlane[0]}", longName="retime_curve", attributeType="double", defaultValue=0, keyable=True)
     shot_length = cmds.playbackOptions(q=1, aet=1) - cmds.playbackOptions(q=1, ast=1)
-    cmds.setKeyframe(f"{createdImagePlane[0]}", attribute="retime_curve", time=start_number, value=start_number)
-    cmds.setKeyframe(f"{createdImagePlane[0]}", attribute="retime_curve", time=shot_length, value=shot_length)
+    cmds.setKeyframe(f"{createdImagePlane[0]}", attribute="retime_curve", time=start_number, value=float(start_number))
+    cmds.setKeyframe(f"{createdImagePlane[0]}", attribute="retime_curve", time=(int(start_number) + int(shot_length)), value=(int(start_number) + int(shot_length)))
     cmds.connectAttr(f"{createdImagePlane[0]}.retime_curve", f"{createdImagePlane[1]}.frameExtension", force=True)
     cmds.keyTangent(f"{createdImagePlane[0]}.retime_curve", inTangentType="spline", outTangentType="spline")
     cmds.setInfinity(f"{createdImagePlane[0]}.retime_curve", postInfinite="linear")
