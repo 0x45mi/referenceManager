@@ -35,12 +35,15 @@ The reference editor is a widget to review reference footage and add it to your 
 
 ## Version compatibility
 - Python 3 and pyside2 (Maya 2024)  <br/>
-- Python 3 and pysyde6 (Maya 2025) <br/>
+- Python 3 and pysyde6 (Maya 2025/2026) <br/>
 
+-Test log <br/>
 Tested in Maya 2024 Windows  <br/>
 Tested in Maya 2025 Windows <br/>
 Worked in Maya 2022 Linux  <br/>
 Worked in Maya 2023 Linux  <br/>
+Worked in Maya 2025 Linux  <br/>
+Worked in Maya 2026 Windows  <br/>
 
 ## How to install
 1. Download the repository and extract files. <br/>
@@ -51,8 +54,10 @@ Worked in Maya 2023 Linux  <br/>
 
 For the drop install to work, you will need pip configured correctly in your system PATH and internet access on your machine. <br/>
 
+- The plugin requires ffmpeg. Please [install ffmpeg](https://pypi.org/project/ffmpeg/) on your computer.<br/>
+
 ### Manual installation
-If the installation fails, you will have to do the last step manually (make cv2 available for the tool), or install pip. <br/>
+If the installation fails, you will have to do the last step manually (make cv2 available for the tool), or [install pip](https://pip.pypa.io/en/stable/installation/) . <br/>
 Download prebuilt cv2 and numpy wheels compatible with your system for python3.10 they are available here: <br/>
 https://pypi.org/project/opencv-python/#files <br/>
 http://pypi.org/project/numpy/#files <br/>
