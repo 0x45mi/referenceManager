@@ -26,12 +26,28 @@ The reference editor is a widget to review reference footage and add it to your 
 | 9 | Export format | |
 | 10 | Start number of the image sequence | |
 | 11 | Reset | |
-| 12 | Pick reference folder | |
+| 12 | Settings | |
 | | Play/pause toggle | L, Alt + V, Space |
 
 + Focus mode: scroll over the video to scroll through frames more slowly
 + Interactive slider handles
 + If you drop an image in the viewport it will make the image plane for the sequence. Assumes editing has been done elsewhere.
+
+<br/>
+SETTINGS WINDOW <br/>
+<br/>
+<img src="https://github.com/0x45mi/referenceManager/blob/main/demo/settingsTour.jpg?raw=true" data-canonical-src="https://github.com/0x45mi/referenceManager/blob/main/demo/settingsTour.jpg?raw=true" />
+ 
+1. Copy path to clipboard <br/>
+2. Edit path to where you save your references <br/>
+3. Cache toggle ON/OFF <br/>
+4. Reset cache settings to default <br/>
+5. Cache size in frames. Maximum number of frames to be held in memory <br/>
+6. Decode these many frames ahead of the playhead <br/>
+7. Decode these many frames behind the playhead <br/>
+8. Create an image plane attached to a camera in Maya <br/>
+9. Create a floating image plane in Maya <br/>
+
 
 ## Version compatibility
 - Python 3 and pyside2 (Maya 2024)  <br/>
