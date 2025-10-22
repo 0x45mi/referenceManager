@@ -90,6 +90,6 @@ Restart maya and drop a video into the viewport to check it's working. <br/>
 - The plugin requires ffmpeg. Please [install ffmpeg](https://pypi.org/project/ffmpeg/) on your computer.<br/>
 
 ### Uninstall
-Delete "referenceEditor.mod" and "referenceEditor" folder from your Maya madules folder. "C:\Users\yourUser\Documents\maya\modules" <br/>
+Delete "referenceEditor.mod" and "referenceEditor" folder from your Maya modules folder. "C:\Users\yourUser\Documents\maya\modules" <br/>
 Delete "userSetup.mel" from your maya version scripts folder. "C:\Users\yourUser\Documents\maya\2024\scripts" <br/>
 
