@@ -629,8 +629,8 @@ class IconButton(QtWidgets.QPushButton):
 
 class CropLabel(QtWidgets.QLabel):
     #signals
-    sig_forwards = QtCore.Signal(bool) 
-    sig_backwards = QtCore.Signal(bool) 
+    sig_forwards = QtCore.Signal(int) 
+    sig_backwards = QtCore.Signal(int) 
     slider_active = QtCore.Signal(bool)  
 
     def __init__(self, parent=None):
@@ -898,11 +898,24 @@ class CropLabel(QtWidgets.QLabel):
 
         if not self.active and ev.buttons() & QtCore.Qt.LeftButton:
             delta = mouse.x() - self.last_mousex_position
-            if abs(delta) > 4 and self.debounce_ready:
-                if delta > 0:
-                    self.sig_forwards.emit(True)
+            if abs(delta) > 2 and self.debounce_ready:
+                if abs(delta) <= 5:
+                    frames = 1
+                elif 6 <= abs(delta) <=10:
+                    frames = 2
+                elif 11 <= abs(delta) <=15:
+                    frames = 4
+                elif 16 <= abs(delta) <=22:
+                    frames = 8
+                elif 23 <= abs(delta) <=28:
+                    frames = 16
                 else:
-                    self.sig_backwards.emit(True)
+                    frames = 32
+
+                if delta > 0:
+                    self.sig_forwards.emit(frames)
+                else:
+                    self.sig_backwards.emit(frames)
 
                 self.last_mousex_position = mouse.x()
                 self.debounce_ready = False

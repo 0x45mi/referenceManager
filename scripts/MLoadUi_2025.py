@@ -354,8 +354,8 @@ class ReferenceEditor(QWidget):
         mk_shortcut("self.sh_crop", Qt.Key_C, self.crop_vis)
 
         ### Event handlers ###
-        self.findChild(QPushButton, "Step_one_frame_backwards").clicked.connect(self.step_backwards)
-        self.findChild(QPushButton, "Step_one_frame_forwards").clicked.connect(self.step_forwards)
+        self.findChild(QPushButton, "Step_one_frame_backwards").clicked.connect(lambda: self.step_backwards(1))
+        self.findChild(QPushButton, "Step_one_frame_forwards").clicked.connect(lambda: self.step_forwards(1))
         self.findChild(QPushButton, "Play_forwards").clicked.connect(self.toggle_playback)
         self.timer.timeout.connect(self.update_frame)
         self.slider.valueChanged.connect(self.set_frame)
@@ -711,14 +711,14 @@ class ReferenceEditor(QWidget):
     def FC_update(self):
         self.FC_label.setText(str(self.slider.variables.get("_outPoint") - self.slider.variables.get("_inPoint")))
     
-    def step_backwards(self):
+    def step_backwards(self, delta=1):
         if self.slider.variables["_frame"] > self.slider.minimum():
-            self.slider.setValue(self.slider.variables.get("_frame") - 1)
+            self.slider.setValue(max(self.slider.minimum(), self.slider.variables.get("_frame") - delta))
             
-    def step_forwards(self):
+    def step_forwards(self, delta=1):
         if self.slider.variables["_frame"] < self.slider.maximum():
-            self.slider.setValue(self.slider.variables.get("_frame") + 1)
-            
+            self.slider.setValue(min(self.slider.variables.get("_frame") + delta, self.slider.maximum()))
+                   
     def toggle_playback(self):
         """Play/Pause the video."""
         if self.is_playing: #Stop
