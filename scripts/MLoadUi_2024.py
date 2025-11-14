@@ -1091,7 +1091,10 @@ class ReferenceEditor(QWidget):
         #flush_cv2()
         self.precache_timer.stop()
         self.exitShortcuts()
-        self.cap.release()
+        try:
+            self.cap.release()
+        except:
+            pass
         if hasattr(self, "settings_win") and self.settings_win is not None:
             self.settings_win.close()
         event.accept()
