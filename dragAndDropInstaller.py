@@ -41,7 +41,9 @@ def install_reference_editor():
         "styleSheet.py",
         "customWidgets_2025.py",
         "MLoadUi_2025.py",
-        "performCustomFileDropAction2025.mel"
+        "performCustomFileDropAction2025.mel",
+        "editorSettingsWindow.py",
+        "editorSettingsWindow_2025.py"
     ]
 
     for file_name in files:
