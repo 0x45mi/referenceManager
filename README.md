@@ -50,8 +50,8 @@ SETTINGS WINDOW <br/>
 
 
 ## Version compatibility
-- Python 3 and pyside2 (Maya 2024)  <br/>
-- Python 3 and pysyde6 (Maya 2025/2026) <br/>
+- Python 3.10 and pyside2 (Maya 2024)  <br/>
+- Python 3.12 and pysyde6 (Maya 2025/2026) <br/>
 
 -Test log <br/>
 Tested in Maya 2024 Windows  <br/>
