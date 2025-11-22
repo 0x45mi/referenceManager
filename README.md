@@ -68,12 +68,12 @@ Worked in Maya 2026 Windows  <br/>
 <br/>
 <img src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorInstall.gif" data-canonical-src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorInstall.gif" width="800" />
 
-For the drop install to work, you will need pip configured correctly in your system PATH and internet access on your machine. <br/>
+For the drop install to work, you will need internet access on your machine. <br/>
 
 - The plugin requires ffmpeg. Please [install ffmpeg](https://pypi.org/project/ffmpeg/) on your computer.<br/>
 
 ### Manual installation
-If the installation fails, you will have to do the last step manually (make cv2 available for the tool), or [install pip](https://pip.pypa.io/en/stable/installation/) . <br/>
+If the installation fails, you will have to do the last step manually (make cv2 available for the tool). <br/>
 Download prebuilt cv2 and numpy wheels compatible with your system for python3.10 they are available here: <br/>
 https://pypi.org/project/opencv-python/#files <br/>
 http://pypi.org/project/numpy/#files <br/>
