@@ -1,8 +1,14 @@
 import os
+import re
+import platform
 import shutil
 import subprocess
 import maya.cmds as cmds
 import maya.mel as mel
+
+
+def onMayaDroppedPythonFile(*args):
+    pass
 
 def install_reference_editor():
     # Get path of this script (the installer)
@@ -88,9 +94,74 @@ def install_reference_editor():
     os.makedirs(cv2_path, exist_ok=True)
 
     # Install opencv-python into cv2Bundle
-    subprocess.run(["pip", "install", "--target=" + cv2_path, "opencv-python"], check=True)
-
+    mayapy_path = find_mayapy(min_version=2024)
+    cmd = [
+        mayapy_path,
+        "-m",
+        "pip",
+        "install",
+        "opencv-python",
+        "--target",
+        cv2_path
+    ]
+    subprocess.run(cmd, check=True)
+    
     cmds.confirmDialog(title="Success", message="referenceEditor Installed Successfully! Please restart Maya", button=["OK"])
 
+def find_mayapy(min_version=2024):
+
+    system = platform.system()
+    install_dir = cmds.internalVar(mayaInstallDir=True)
+
+    # 1. Pick base Autodesk directory per OS
+    if system == "Windows":
+        base_path = os.path.dirname(install_dir)
+        exe_name = "mayapy.exe"
+    elif system == "Darwin":  # macOS
+        base_path = os.path.dirname(os.path.dirname(install_dir))
+        exe_name = "mayapy"
+    else:  # Linux
+        base_path = os.path.dirname(install_dir)
+        exe_name = "mayapy"
+
+    if not os.path.exists(base_path):
+        return None
+
+    # 2. Collect Maya versions
+    versions = []
+    for item in os.listdir(base_path):
+        match = re.search(r"maya?(\d{4})", item, re.IGNORECASE)
+        if match:
+            versions.append(int(match.group(1)))
+
+    if not versions:
+        return None
+
+    # 3. Filter ≥ 2024 and take lowest
+    target_version = next((v for v in sorted(versions) if v >= min_version), None)
+    if target_version is None:
+        return None
+
+    # 4. Build the path to mayapy
+    # Windows: Maya2024/mayapy.exe
+    # macOS: maya2024/Maya.app/Contents/bin/mayapy
+    # Linux: maya2024/bin/mayapy
+
+    version_folder = next(
+        f for f in os.listdir(base_path)
+        if re.search(str(target_version), f)
+    )
+
+    maya_dir = os.path.join(base_path, version_folder)
+
+    if system == "Darwin":  # macOS
+        mayapy_path = os.path.join(maya_dir, "Maya.app", "Contents", "bin", exe_name)
+    else:
+        mayapy_path = os.path.join(maya_dir, "bin", exe_name)
+
+    return mayapy_path
+
+    
 # Run the installer
+onMayaDroppedPythonFile()
 install_reference_editor()
