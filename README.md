@@ -1,4 +1,4 @@
-# Reference Editor for Maya 
+# Video Editor for Maya 
 The reference editor is a widget to review reference footage and add it to your maya scene as an image plane, faser. It's designed to look and behave similar to RV. It handles cutting the video, cropping and flipping, converting framerates and resolution and managing the files, so you don't have to! Options to export in .jpeg and .png and choose a start frame are available.
 
 ## How to use it <br/>
@@ -93,3 +93,10 @@ Restart maya and drop a video into the viewport to check it's working. <br/>
 Delete "referenceEditor.mod" and "referenceEditor" folder from your Maya modules folder. "C:\Users\yourUser\Documents\maya\modules" <br/>
 Delete "userSetup.mel" from your maya version scripts folder. "C:\Users\yourUser\Documents\maya\2024\scripts" <br/>
 
+
+## Wishlist
+- Audio
+- Frame fix when catching cached frames
+- Smart audio offset (potential mini ai project)
+- Timeline markers
+- Multi range
