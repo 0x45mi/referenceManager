@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import QComboBox, QLineEdit
 from PySide6 import QtCore, QtGui, QtWidgets
+import math
 
 
 class EComboBox(QComboBox):
@@ -32,8 +33,9 @@ class AutoLineEdit(QLineEdit):
         
 class VideoRangeSlider(QtWidgets.QAbstractSlider):
 
-    in_out_valueChanged = QtCore.Signal(int)  
+    in_out_valueChanged = QtCore.Signal(int)
     slider_active = QtCore.Signal(bool)
+    sliderStateChanged = QtCore.Signal(object, object, object) #in_point, playhead_frame, out_point -to send to the cache machine
 
     def __init__(self, orientation=QtCore.Qt.Horizontal, parent=None):
         super().__init__(parent)
@@ -64,6 +66,7 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
         self.debounce_timer = QtCore.QTimer(self)
         self.debounce_timer.setSingleShot(True)  # Only fire once after inactivity
         self.debounce_timer.timeout.connect(self.emit_values)
+        self.debounce_timer.timeout.connect(self.emit_sliderStateChanged)
     
 
 
@@ -106,6 +109,9 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
         # draw frame number
         self.draw_frame_number(painter, self.variables.get("_frame"), 1)
 
+        #draw timeline marker
+        self.draw_timelineMarker(painter)
+
         painter.end()
 
     def draw_frame_number(self, painter, value, brt):
@@ -124,7 +130,11 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
         painter.setPen(QtCore.Qt.NoPen)
         painter.drawRect(text_rect)
 
-        base_color = QtGui.QColor(169, 169, 169)
+        if value in self.parent().parent().parent().timeline_markers:
+            base_color = QtGui.QColor(169, 169, 255)
+            brt = 1
+        else:
+            base_color = QtGui.QColor(169, 169, 169)
         colour = QtGui.QColor(
             int(base_color.red() * brt),
             int(base_color.green() * brt),
@@ -139,7 +149,11 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
         x_pos = self.value_to_pixel(value)
         handleR = QtCore.QRect(x_pos - 1 , self.height() // 2 + 1, 2 - one, 10)
         painter.setPen(QtGui.Qt.NoPen)
-        base_color = QtGui.QColor(140, 140, 140)
+        if value in self.parent().parent().parent().timeline_markers:
+           base_color = QtGui.QColor(140, 140, 255)
+           brt = 1
+        else:
+           base_color = QtGui.QColor(140, 140, 140)
         colour = QtGui.QColor(
             int(base_color.red() * brt),
             int(base_color.green() * brt),
@@ -171,6 +185,18 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
                     QtCore.QPoint(x_pos +  13, self.height() // 2 + 6)
                     ]
                 painter.drawConvexPolygon(triangle)
+
+    def draw_timelineMarker(self, painter):
+        for marker in self.parent().parent().parent().timeline_markers:
+            x_pos = self.value_to_pixel(marker)
+            markerTick = QtCore.QRect(x_pos, self.height() // 2 + 2, 1, 8)
+            dot = QtCore.QRect(x_pos - 1 , self.height() // 2 + 9, 3, 3)
+            painter.setPen(QtGui.QPen((QtGui.QColor(200, 200, 255, 255)), .5, QtGui.Qt.SolidLine, QtGui.Qt.SquareCap, QtGui.Qt.MiterJoin))
+            painter.setBrush(QtGui.QBrush((QtGui.QColor(255, 255, 255, 255))))
+
+            painter.drawRect(markerTick)
+            painter.drawEllipse(dot)
+
 
     def draw_cache(self, painter):
         for key in self.parent().parent().parent().frame_cache:
@@ -248,7 +274,6 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
 
         else:
             super().tabletEvent(event)
-    
 
 
 # Functions
@@ -273,10 +298,18 @@ class VideoRangeSlider(QtWidgets.QAbstractSlider):
     def emit_values(self):
         self.in_out_valueChanged.emit(self.variables.get("_outPoint") - self.variables.get("_inPoint"))
         self.valueChanged.emit(self.variables["_frame"])
+ 
+    def emit_sliderStateChanged(self):
+        self.sliderStateChanged.emit(
+            self.variables.get("_inPoint"),
+            self.variables.get("_frame"),
+            self.variables.get("_outPoint")
+        )
         
     def setValue(self, value):
         self.variables["_frame"] = value
         self.valueChanged.emit(self.variables["_frame"])
+        self.emit_sliderStateChanged()
         self.update()
             
     def clamp_values(self, value):
@@ -385,6 +418,51 @@ class IconButton(QtWidgets.QPushButton):
         super().__init__(parent)  # Correct superclass initialization
         self.icon_type = icon_type  # Store the icon type
 
+    def draw_cog(self, painter, center, teeth, radius):
+        path = QtGui.QPainterPath()
+
+        outer = radius
+        notch = radius * 0.22  # depth of tooth cut
+        inner = outer - notch
+
+        tooth_angle = 2 * math.pi / teeth
+        gap = tooth_angle * .3
+
+        for i in range(teeth):
+            a0 = i * tooth_angle
+            a1 = a0 + gap
+            a2 = a0 + tooth_angle
+
+            p1 = QtCore.QPointF(
+                center.x() + outer * math.cos(a1),
+                center.y() + outer * math.sin(a1)
+            )
+            p2 = QtCore.QPointF(
+                center.x() + inner * math.cos(a1),
+                center.y() + inner * math.sin(a1)
+            )
+            p3 = QtCore.QPointF(
+                center.x() + inner * math.cos(a2),
+                center.y() + inner * math.sin(a2)
+            )
+            p4 = QtCore.QPointF(
+                center.x() + outer * math.cos(a2),
+                center.y() + outer * math.sin(a2)
+            )
+
+            if i == 0:
+                path.moveTo(p1)
+            else:
+                path.lineTo(p1)
+
+            path.lineTo(p2)
+            path.lineTo(p3)
+            path.lineTo(p4)
+
+        path.closeSubpath()
+        painter.drawPath(path)
+
+
 
     def paintEvent(self, event):
         super().paintEvent(event)
@@ -422,7 +500,6 @@ class IconButton(QtWidgets.QPushButton):
             painter.drawConvexPolygon(triangle)
             painter.drawRect(rectangle)
 
-
         if self.icon_type == "Step_one_frame_forwards":
             points = [
                 QtCore.QPoint(self.width() // 2 - 4, self.height() // 2 + 6),  
@@ -459,8 +536,6 @@ class IconButton(QtWidgets.QPushButton):
             painter.drawConvexPolygon(triangle)
             painter.drawRect(rectangle)
 
-        painter.setBrush(QtGui.QColor(140, 140, 140, 255))
-
         if self.icon_type == "Flip":
             points_01 = [
                 QtCore.QPoint(self.width() // 2 + 6, self.height() // 2 - 2),  
@@ -474,11 +549,11 @@ class IconButton(QtWidgets.QPushButton):
             ]
             triangle_01 = QtGui.QPolygon(points_01)
             triangle_02 = QtGui.QPolygon(points_02)
+            painter.setBrush(QtGui.QColor(140, 140, 140, 255))
             painter.drawConvexPolygon(triangle_01)
             painter.drawConvexPolygon(triangle_02)
             rectangle = QtCore.QRect(self.width() // 2 - 7, self.height() // 2 , 14, 1)
             painter.drawRoundedRect(rectangle, 1, 1)
-
 
         if self.icon_type == "Flop":
             points_01 = [
@@ -527,8 +602,8 @@ class IconButton(QtWidgets.QPushButton):
             painter.drawRoundedRect(rect_05, 1, 1)
 
         if self.icon_type == "Reset":
-            pen = QtGui.QPen((QtGui.QColor(130, 130, 130, 255)), 2, QtGui.Qt.SolidLine, QtGui.Qt.RoundCap, QtGui.Qt.RoundJoin)
-            brush = QtGui.QBrush((QtGui.QColor(130, 130, 130, 255)))
+            pen = QtGui.QPen((QtGui.QColor(140, 140, 140, 255)), 2, QtGui.Qt.SolidLine, QtGui.Qt.RoundCap, QtGui.Qt.RoundJoin)
+            brush = QtGui.QBrush((QtGui.QColor(140, 140, 140, 255)))
             painter.setPen(pen)
             painter.setBrush(brush)
             rectangle = QtCore.QRect(self.width() // 2 - 6, self.height() // 2 - 7, 13, 13)
@@ -545,15 +620,16 @@ class IconButton(QtWidgets.QPushButton):
             painter.drawConvexPolygon(triangle)
 
         if self.icon_type == "Info":
-            pen = QtGui.QPen((QtGui.QColor(130, 130, 130, 255)), 2, QtGui.Qt.SolidLine, QtGui.Qt.RoundCap, QtGui.Qt.RoundJoin)
-            brush = QtGui.QBrush((QtGui.QColor(130, 130, 130, 255)))
+            pen = QtGui.QPen((QtGui.QColor(140, 140, 140, 255)), 1.5, QtGui.Qt.SolidLine, QtGui.Qt.SquareCap, QtGui.Qt.RoundJoin)
+            brush = QtGui.QBrush((QtGui.QColor(140, 140, 140, 255)))
             painter.setPen(pen)
             painter.setBrush(brush)
-            
-            rectangle = QtCore.QRect(self.width() // 2 - 6, self.height() // 2 - 7, 13, 13)
-            startAngle = 0 * 16
-            spanAngle = 360 * 16
-            painter.drawArc(rectangle, startAngle, spanAngle)
+
+            self.draw_cog(painter, center=(QtCore.QPoint(self.width()//2, self.height()//2 )), teeth=7, radius=8)
+
+            painter.setBrush(QtGui.QBrush((QtGui.QColor(35, 35, 35, 255))))
+            painter.setPen(QtGui.QPen((QtGui.QColor(140, 140, 140, 255)), 1.5, QtGui.Qt.SolidLine, QtGui.Qt.SquareCap, QtGui.Qt.RoundJoin))
+            painter.drawEllipse(QtCore.QPointF(QtCore.QPoint(self.width()//2, self.height()//2 )), 6, 6)
 
         if self.icon_type == "Copy":
             rectangle2 = QtCore.QRect(self.width() // 2 - 2, self.height() // 2 - 7, 8, 10)
@@ -565,7 +641,6 @@ class IconButton(QtWidgets.QPushButton):
             painter.setPen(QtGui.QPen((QtGui.QColor(150, 150, 150, 255)), 2, QtGui.Qt.SolidLine, QtGui.Qt.RoundCap, QtGui.Qt.RoundJoin))
             painter.setBrush(QtGui.QBrush((QtGui.QColor(150, 150, 150, 255))))
             painter.drawRect(rectangle)
-
 
         if self.icon_type == "Edit":
             pen = QtGui.QPen((QtGui.QColor(150, 150, 150, 255)), 2, QtGui.Qt.SolidLine, QtGui.Qt.RoundCap, QtGui.Qt.RoundJoin)
@@ -621,9 +696,63 @@ class IconButton(QtWidgets.QPushButton):
             painter.drawLine(10, 9, 7, 6)
             painter.drawLine(10, 3, 7, 6)
 
+        if self.icon_type == "Volume":
+
+            #Low Volume
+            if not self.isChecked():
+                if 0 < self.parent().parent().volume_slider.value() <= 33 or 66 < self.parent().parent().volume_slider.value():
+
+                    painter.setPen(QtGui.QPen((QtGui.QColor(49, 49, 49, 255)), 5, QtGui.Qt.SolidLine, QtGui.Qt.FlatCap, QtGui.Qt.BevelJoin))
+                    arcRectangle = QtCore.QRect(self.width() // 2 + 4 , self.height() // 2 - 1 , 1, 2)
+                    painter.drawArc(arcRectangle, -90*16, 180*16)
+
+                    painter.setPen(QtGui.QPen((QtGui.QColor(130, 130, 130, 255)), 1.5, QtGui.Qt.SolidLine, QtGui.Qt.SquareCap, QtGui.Qt.RoundJoin))
+                    painter.drawArc(arcRectangle, -90*16, 180*16)
+            
+
+            #Cone
+            painter.setPen(QtGui.QPen((QtGui.QColor(150, 150, 150, 255)), 1.5, QtGui.Qt.SolidLine, QtGui.Qt.SquareCap, QtGui.Qt.RoundJoin))
+
+            painter.drawLine(18, self.height() // 2 + 7, 18, self.height() // 2 - 7)
+            painter.drawLine(18, self.height() // 2 + 7, 10, self.height() // 2 + 3)
+            painter.drawLine(18, self.height() // 2 - 7, 10, self.height() // 2 - 3)
+
+            painter.setPen(QtGui.QPen((QtGui.QColor(150, 150, 150, 255)), 1.5, QtGui.Qt.SolidLine, QtGui.Qt.SquareCap, QtGui.Qt.RoundJoin))
+            arcRectangle = QtCore.QRect(self.width() // 2 - 8, self.height() // 2 - 3 , 8, 6)
+            painter.drawArc(arcRectangle, 130*16, 100*16)
+
+            #Mute
+            
+            if self.isChecked() or self.parent().parent().volume_slider.value() == 0:          
+                painter.setPen(QtGui.QPen((QtGui.QColor(49, 49, 49, 255)), 5, QtGui.Qt.SolidLine, QtGui.Qt.FlatCap, QtGui.Qt.BevelJoin))
+                painter.drawLine(22, self.height() // 2 + 4, 16, self.height()//2 - 4)
+                painter.drawLine(22, self.height() // 2 - 4, 16, self.height()//2 + 4)
+
+                painter.setPen(QtGui.QPen((QtGui.QColor(150, 150, 150, 255)), 1.5, QtGui.Qt.SolidLine, QtGui.Qt.SquareCap, QtGui.Qt.RoundJoin))
+                painter.drawLine(22, self.height() // 2 + 3, 17, self.height()//2 - 3)
+                painter.drawLine(22, self.height() // 2 - 3, 17, self.height()//2 + 3)
+            
+
+            #Medium Volume
+            if not self.isChecked():
+                if 33< self.parent().parent().volume_slider.value() <= 66:
+                    painter.setPen(QtGui.QPen((QtGui.QColor(130, 130, 130, 255)), 1.5, QtGui.Qt.SolidLine, QtGui.Qt.RoundCap, QtGui.Qt.RoundJoin))
+                    arcRectangle = QtCore.QRect(self.width() // 2 + 4 , self.height() // 2 - 3 , 3, 6)
+                    painter.drawArc(arcRectangle, -90*16, 180*16)
+            
+
+            #High Volume
+            if not self.isChecked():
+                if 66 < self.parent().parent().volume_slider.value():
+                    painter.setPen(QtGui.QPen((QtGui.QColor(150, 150, 150, 255)), 1.5, QtGui.Qt.SolidLine, QtGui.Qt.RoundCap, QtGui.Qt.RoundJoin))
+                    arcRectangle = QtCore.QRect(self.width() // 2  , self.height() // 2 - 5 , 8, 10)
+                    painter.drawArc(arcRectangle, -75*16, 150*16)
+
+
 
             
 
+            
 
         painter.end()
 
@@ -965,7 +1094,7 @@ class CropLabel(QtWidgets.QLabel):
 class CacheDict(QtCore.QObject):
     cache_changed = QtCore.Signal(int)
 
-    def __init__(self, cache_size, look_ahead, look_behind, mini_margin, *args, **kwargs):
+    def __init__(self, cache_size=800, look_ahead=750, look_behind=50, mini_margin=35, *args, **kwargs):
         super().__init__()
         self._data = dict(*args, **kwargs)
         self.cache_size = cache_size
@@ -1010,4 +1139,10 @@ class CacheDict(QtCore.QObject):
 
     def emit_signal(self, key):
         self.cache_changed.emit(key)
+
+    def configure(self, size, look_ahead, look_behind, mini_margin=35):
+        self.cache_size = size
+        self.look_ahead = look_ahead
+        self.look_behind = look_behind
+        self.mini_margin = mini_margin
 

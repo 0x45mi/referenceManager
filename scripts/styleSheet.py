@@ -135,7 +135,7 @@ def Dark_button_style():
     return """
         QPushButton {
             background-color: #202020;
-            border: 1px solid #555555;
+            border: 0px solid #555555;
             border-radius: 5px;
             color: #aaaaaa;
             font-size: 11.5px;
@@ -249,3 +249,52 @@ def Light_button_style():
             );
         }
     """
+
+def slider_style():
+    return"""
+        QSlider::groove:horizontal {
+            height: 4px;
+            background: #4d4d4d;
+            border-radius: 2px;
+        }
+
+        QSlider::sub-page:horizontal {
+            background: #969696;
+            border-radius: 2px;
+        }
+        
+        QSlider::sub-page:horizontal:hover {
+            background: #21be2b;
+            border-radius: 2px;
+        }
+
+        QSlider::add-page:horizontal {
+            background: #4d4d4d;
+            border-radius: 2px;
+        }
+
+        QSlider::add-page:horizontal:hover {
+            background: #4d4d4d;
+            border-radius: 2px;
+        }
+
+        QSlider::handle:horizontal {
+            width: 10px;
+            height: 8px;
+            margin: -4px 0;
+            background: transparent;
+            border: none;
+        }
+
+        QSlider::handle:horizontal:hover {
+            background: #f6f6f6;
+            border: 1px solid #bdbebf;
+            border-radius: 6px;
+        }
+
+        QSlider::handle:horizontal:pressed {
+            background: #f0f0f0;
+        }
+
+
+        """

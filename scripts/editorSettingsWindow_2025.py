@@ -73,8 +73,10 @@ class SettingsWindow(QDialog):
             radioButton_layout = cw.FilledVWidget(col, self)
             radioButton_layout.imagePlane_rb = myRadioButton("Image plane")
             radioButton_layout.floatingImagePlane_rb = myRadioButton("Floating image plane")
+            radioButton_layout.sean_rb = myRadioButton("Image plane with keyed retime")
             radioButton_layout.layout.addWidget(radioButton_layout.imagePlane_rb)
             radioButton_layout.layout.addWidget(radioButton_layout.floatingImagePlane_rb)
+            radioButton_layout.layout.addWidget(radioButton_layout.sean_rb)
             return radioButton_layout
         
         def my_iconButton(id):
@@ -146,11 +148,13 @@ class SettingsWindow(QDialog):
         self.caching_options.layout.addWidget(self.lookBehind)
 
         self.caching_widget.layout.addWidget(self.caching_options)
+        self.caching_widget.layout.addItem(QSpacerItem(1, 8, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
         layout_frame.layout.addWidget(self.caching_widget)
 
         plateSetup_widget = cw.FilledVWidget(col, self)
         plateSetup_widget.layout.addWidget(heading_widget("Plate setup in Maya"))
-        radioButton_widget = cw.FilledWidget(42, col, self)
+        plateSetup_widget.layout.addItem(QSpacerItem(1, 8, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
+        radioButton_widget = cw.FilledWidget(69, col, self)
         radioButton_widget.layout.addItem(QSpacerItem(120, 1, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
         self.radioButton_layout = radioButton_lay()
         radioButton_widget.layout.addWidget(self.radioButton_layout)
@@ -178,9 +182,15 @@ class SettingsWindow(QDialog):
         if IPBool == 0:
             self.radioButton_layout.imagePlane_rb.setChecked(True)
             self.radioButton_layout.floatingImagePlane_rb.setChecked(False)
-        else:
+            self.radioButton_layout.sean_rb.setChecked(False)
+        elif IPBool == 1:
             self.radioButton_layout.imagePlane_rb.setChecked(False)
             self.radioButton_layout.floatingImagePlane_rb.setChecked(True)
+            self.radioButton_layout.sean_rb.setChecked(False)
+        else: 
+            self.radioButton_layout.imagePlane_rb.setChecked(False)
+            self.radioButton_layout.floatingImagePlane_rb.setChecked(False)
+            self.radioButton_layout.sean_rb.setChecked(True)
 
     def cacheSwitch(self, checked: bool):
         self.cachingCheckbox.setChecked(checked)
