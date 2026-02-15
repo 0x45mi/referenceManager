@@ -9,25 +9,30 @@ The reference editor is a widget to review reference footage and add it to your 
 <img src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorDemo.gif?raw=true" data-canonical-src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorDemo.gif?raw=true" width="800" />
 
 ### Tour of the UI and shortcuts!
-<img src="https://github.com/0x45mi/referenceManager/blob/main/demo/UITour.jpg?raw=true" data-canonical-src="https://github.com/0x45mi/referenceManager/blob/main/demo/UITour.jpg?raw=true" width="800" />
+<img src="https://github.com/0x45mi/referenceManager/blob/main/demo/UITour_v02.jpg?raw=true" width="800" />
  <br/>
 
 
 | | Description | Shortcut|
 |--------|-------------|---------|
-| 1 | Frame step | ,, Arrow Left, ., Arrow Right|
-| 2 | Set range start and end | [ ] |
-| 3 | Flop | Shift + X |
-| 4 | Crop | C |
-| 5 | Flip | Shift + Y |
-| 6 | Retime | Shift + F |
-| 7 | Framerate at which to export the image sequence | |
-| 8 | Resolution at which to export the images | |
-| 9 | Export format | |
-| 10 | Start number of the image sequence | |
-| 11 | Reset | |
-| 12 | Settings | |
-| | Play/pause toggle | L, Alt + V, Space |
+| 1 | Frame step backwards| , , Arrow Left|
+| 2 | Frame step forwards| . , Arrow Right|
+| 3 | Play/pause toggle | L, Alt + V, Space |
+| 4 | Set range start | [ , i |
+| 5 | Set range end | ] , o |
+| 6 | Flop | Shift + X |
+| 7 | Crop | C |
+| 8 | Flip | Shift + Y |
+| 9 | Retime | Shift + F |
+| 10 | Framerate at which to export the image sequence | |
+| 11 | Resolution at which to export the images | |
+| 12 | Export format | |
+| 13 | Start number of the image sequence | |
+| 14 | Settings | |
+| 15 | Reset | |
+| 16 | Audio volume | |
+
+
 
 + Focus mode: scroll over the video to scroll through frames more slowly
 + Interactive slider handles
