@@ -634,7 +634,7 @@ class ReferenceEditor(QWidget):
             self.last_volume = value
         if value == 0:
             self.volume_pushbutton.setChecked(True)
-        self.audio_output.setVolume(value)
+        self.audio_output.setVolume(value / 100.0)
         self.volume_pushbutton.repaint()
 
     def set_speed(self, fps):
