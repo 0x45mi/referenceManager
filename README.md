@@ -6,9 +6,12 @@ The reference editor is a widget to review reference footage and add it to your 
 2. Edit in the widget. <br/>
 3. Follow the dialogs to create the image plane. <br/>
 
-<img src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorDemo.gif?raw=true" data-canonical-src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorDemo.gif?raw=true" width="800" />
+<img src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorDemo.gif?raw=true" data-canonical-src="https://github.com/0x45mi/referenceManager/blob/main/demo/referenceEditorDemo.gif?raw=true" width="800" /><br/>
 
-### Tour of the UI and shortcuts!
+## Tour of the UI and shortcuts !
+
+EDITOR WINDOW <br/>
+<br/>
 <img src="https://github.com/0x45mi/referenceManager/blob/main/demo/UITour_v02.jpg?raw=true" width="800" />
  <br/>
 
@@ -31,6 +34,8 @@ The reference editor is a widget to review reference footage and add it to your 
 | 14 | Settings | |
 | 15 | Reset | |
 | 16 | Audio volume | |
+| 17 | Add/remove timeline marker on current frame| M |
+|  | Walk through timeline markers | Alt + Arrow Right, Alt + Arrow Left |
 
 
 
@@ -41,7 +46,7 @@ The reference editor is a widget to review reference footage and add it to your 
 <br/>
 SETTINGS WINDOW <br/>
 <br/>
-<img src="https://github.com/0x45mi/referenceManager/blob/main/demo/settingsTour.jpg?raw=true" data-canonical-src="https://github.com/0x45mi/referenceManager/blob/main/demo/settingsTour.jpg?raw=true" />
+<img src="https://github.com/0x45mi/referenceManager/blob/main/demo/settingsTour_v02.jpg?raw=true" />
  
 1. Copy path to clipboard <br/>
 2. Edit path to where you save your references <br/>
@@ -52,7 +57,8 @@ SETTINGS WINDOW <br/>
 7. Decode these many frames behind the playhead <br/>
 8. Create an image plane attached to a camera in Maya <br/>
 9. Create a floating image plane in Maya <br/>
-
+9. Create an image plane attached to a camera with the frame extention connected to a curve <br/>
+<br/>
 
 ## Version compatibility
 - Python3 and pyside2 (Maya 2024)  <br/>
@@ -65,6 +71,7 @@ Worked in Maya 2022 Linux  <br/>
 Worked in Maya 2023 Linux  <br/>
 Worked in Maya 2025 Linux  <br/>
 Worked in Maya 2026 Windows  <br/>
+<br/>
 
 ## How to install
 1. Download the repository and extract files. <br/>
@@ -97,11 +104,9 @@ Restart maya and drop a video into the viewport to check it's working. <br/>
 ### Uninstall
 Delete "referenceEditor.mod" and "referenceEditor" folder from your Maya modules folder. "C:\Users\yourUser\Documents\maya\modules" <br/>
 Delete "userSetup.mel" from your maya version scripts folder. "C:\Users\yourUser\Documents\maya\2024\scripts" <br/>
-
+<br/>
 
 ## Wishlist
-- Audio
-- Frame fix when catching cached frames
-- Smart audio offset (potential mini ai project)
-- Timeline markers
-- Multi range
+- Audio alignement for lipsync
+- Write the cache in C for propper scheduling
+- Ship with ffmpeg so it's easier to install
